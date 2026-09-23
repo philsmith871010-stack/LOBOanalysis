@@ -40,9 +40,16 @@ def read_market(sh, st):
     return Market(parse_asof(st["As-of date"]), curve, surface, reversion=float(st["Mean reversion"]))
 
 
+def get_ws(sh, name, rows=200, cols=30):
+    try:
+        return sh.worksheet(name)
+    except gspread.WorksheetNotFound:
+        return sh.add_worksheet(name, rows, cols)
+
+
 def sync_schedule(sh, mkt, term, freq, rate, notional, preset):
     """Rebuild the Schedule rows for (term, freq); keep ticks where the period still exists; apply a preset if given."""
-    ws = sh.worksheet("Schedule")
+    ws = get_ws(sh, "Schedule")
     vals = ws.get_all_values()
     key = ws.acell(KEY_CELL).value
     ticks = {}
@@ -79,7 +86,7 @@ def run(sh):
     term = int(float(sr["Term (years)"])); freq = int(float(sr["Frequency (months)"]))
     rate_in = str(sr["Fixed rate %"]).strip().lower()
     K = 0.02 if rate_in in ("fair", "solve") else float(rate_in.replace("%", "")) / 100
-    res_ws = sh.worksheet("Results"); res_ws.update("B1", [["running..."]])
+    res_ws = get_ws(sh, "Results"); res_ws.update("B1", [["running..."]])
     sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, sr.get("Preset", ""))
     if sr.get("Preset", ""):
         ws = sh.worksheet("Structure"); c = ws.find("Preset"); ws.update_cell(c.row, 2, "")
