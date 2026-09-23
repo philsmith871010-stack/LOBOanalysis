@@ -1,0 +1,7 @@
+QuantLib>=1.33
+numpy
+scipy
+gspread
+google-auth
+openpyxl
+pytest
