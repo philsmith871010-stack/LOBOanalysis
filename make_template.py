@@ -91,4 +91,14 @@ lines = [("How to use this sheet", True), ("", False),
 for i, (t, bold) in enumerate(lines, 1):
     c = ws.cell(row=i, column=1, value=t); c.font = Font(bold=bold, size=12 if bold else 11)
 ws.column_dimensions["A"].width = 140
-wb.save("LOBO_pricer_template.xlsx"); print("xlsx ok")
+import os
+if os.environ.get("LITE"):
+    ws = wb["Schedule"]
+    ws.delete_rows(2, ws.max_row)
+    ws["A3"] = "Empty until the first run: the Mac script builds one row per coupon period and applies Structure!Preset. Then tick 'Cancel here?' by hand (Insert > Checkbox on the column) or type a preset."
+    ws["Z1"] = ""
+    wb["Structure"]["B4"] = "semi-annual 2-15"
+    wb.remove(wb["Collateral"])
+    wb.save("LOBO_pricer_template_lite.xlsx"); print("lite ok")
+else:
+    wb.save("LOBO_pricer_template.xlsx"); print("xlsx ok")
