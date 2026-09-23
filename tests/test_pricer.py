@@ -17,3 +17,15 @@ def test_fair_rate_solver():
     mkt = Market(LIVE_ASOF, LIVE_CURVE, LIVE_SURFACE)
     k, r = fair_rate(mkt, CallableSwap(40, 0.02))
     assert abs(k - 0.0110) < 0.0006 and abs(r["bank_take"]) < 30e3
+
+
+def test_schedule_pv_matches_swap():
+    from pricer import build_schedule, preset_ticks
+    mkt = Market(LIVE_ASOF, LIVE_CURVE, LIVE_SURFACE)
+    rows, npv = build_schedule(mkt, 40, 6, 0.0143, 10e6)
+    assert len(rows) == 80
+    assert abs(sum(r["PV of net £"] for r in rows) - npv) < 2000
+    ticks = preset_ticks("six dates", 40, 6)
+    assert ticks == {4, 6, 10, 14, 20, 30}
+    r = price(mkt, CallableSwap(40, 0.0143, call_periods_list=sorted(ticks)))
+    assert r["n_calls"] == 6 and 5.5e6 < r["cancel_right"] < 6.5e6

@@ -13,15 +13,18 @@ class CallableSwap:
     first_call_years: float = 2
     last_call_years: float = 15
     call_years: Optional[List[float]] = None   # explicit list overrides first/last
+    call_periods_list: Optional[List[int]] = None  # explicit period indices (from the Schedule ticks) override everything
 
     def call_periods(self):
         ppy = 12 // self.freq_months
+        if self.call_periods_list:
+            return sorted(self.call_periods_list)
         if self.call_years:
             return [int(round(y * ppy)) for y in self.call_years]
         return list(range(int(round(self.first_call_years * ppy)), int(round(self.last_call_years * ppy)) + 1))
 
 
-def price(mkt, s: CallableSwap, europeans=True, ladder_max=6):
+def price(mkt, s: CallableSwap, europeans=True, ladder_max=None):
     """Returns a dict with the bank's cancel-right value, what the coupon discount is worth, and the European ladder."""
     T, K, N, fm = s.term_years, s.rate, s.notional, s.freq_months
     ppy = 12 // fm
@@ -29,9 +32,10 @@ def price(mkt, s: CallableSwap, europeans=True, ladder_max=6):
     annuity = sum(mkt.dc.yearFraction(fd[j], fd[j + 1]) * mkt.curve.discount(fd[j + 1]) for j in range(len(fd) - 1)) * N
     calls = s.call_periods()
     ex = [mkt.cal.advance(fd[k], -2, ql.Days) for k in calls]
-    helpers = []
+    helpers = []; nvols = {}
     for k in calls:
         F = mkt.swap(k * fm, T * 12 - k * fm, K, fm, 1.0).fairRate(); ty = k / ppy
+        nvols[k] = mkt.nvol(ty, T - ty, K - F)
         helpers.append(ql.SwaptionHelper(ql.Period(k * fm, ql.Months), ql.Period(T * 12 - k * fm, ql.Months),
                                          ql.QuoteHandle(ql.SimpleQuote(mkt.nvol(ty, T - ty, K - F))), mkt.index[fm],
                                          ql.Period(fm, ql.Months), mkt.dc, mkt.dc, mkt.h,
@@ -46,14 +50,14 @@ def price(mkt, s: CallableSwap, europeans=True, ladder_max=6):
     value = berm.NPV()
     paid = (par - K) * annuity
     out = dict(par=par, annuity=annuity, cancel_right=value, coupon_discount=paid, bank_take=value - paid,
-               calib_err=max(abs(h.calibrationError()) for h in helpers), n_calls=len(calls))
+               calib_err=max(abs(h.calibrationError()) for h in helpers), n_calls=len(calls), nvols=nvols)
     if europeans:
         ladder = []
-        for k, d in list(zip(calls, ex))[:ladder_max]:
+        for k, d in list(zip(calls, ex))[:ladder_max] if ladder_max else zip(calls, ex):
             fwd = mkt.swap(k * fm, T * 12 - k * fm, K, fm, N)
             e = ql.Swaption(fwd, ql.EuropeanExercise(d), ql.Settlement.Cash, ql.Settlement.CollateralizedCashPrice)
             e.setPricingEngine(engine)
-            ladder.append((k / ppy, e.NPV(), fwd.NPV()))
+            ladder.append((k / ppy, e.NPV(), fwd.NPV(), k))
         best = max(ladder, key=lambda r: r[1])
         out.update(europeans=ladder, best_european=best[1], best_european_expiry=best[0], intrinsic=best[2],
                    multiple=value / best[1], time_value=value - best[1])

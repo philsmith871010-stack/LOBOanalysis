@@ -23,8 +23,8 @@ for i, (k, v) in enumerate(rows, 1):
     ws.cell(row=i, column=1, value=k).font = B; c = ws.cell(row=i, column=2, value=v)
     if k and k not in ("Status", "Notes"): c.fill = IN
 ws = wb.create_sheet("Structure")
-rows = [("Term (years)", 40), ("Fixed rate %", 1.43), ("First call (years)", 2), ("Last call (years)", 15), ("Frequency (months)", 6), ("Explicit call years", ""), ("", ""),
-        ("Notes", "Fixed rate: a number, or 'fair' to solve the model-fair rate and the dealt rates at the two take levels. Explicit call years (e.g. 2, 3, 5, 7, 10, 15) overrides first/last.")]
+rows = [("Term (years)", 40), ("Fixed rate %", 1.43), ("Frequency (months)", 6), ("Preset", ""), ("", ""),
+        ("Notes", "Fixed rate: a number, or 'fair' to solve the model-fair rate and the dealt rates at the two take levels. The call schedule is whatever is ticked on the Schedule tab. Preset fills the ticks on the next run (semi-annual 2-15, annual 2-15, annual 3-10, six dates, single 2y, full strip, none) and is then cleared.")]
 for i, (k, v) in enumerate(rows, 1):
     ws.cell(row=i, column=1, value=k).font = B; c = ws.cell(row=i, column=2, value=v)
     if k and k != "Notes": c.fill = IN
@@ -57,4 +57,38 @@ for i, r in enumerate([(2, "100%", 800000, 3900000, 7800000), (3, "41%", 800000,
 ws["G1"] = "Reference: 40y at 1.43%, semi-annual 2-15, £10m, live data 2026-09-22 (from the briefing). Not recomputed by the slim script."
 for w in wb.worksheets:
     for col in range(1, 25): w.column_dimensions[get_column_letter(col)].width = 14 if col > 1 else 30
+
+# ---- Schedule tab, populated from the pricer with the semi-annual 2-15 ticks ----
+from pricer import Market, build_schedule, preset_ticks, SCHEDULE_COLUMNS
+from pricer.data import LIVE_ASOF, LIVE_SURFACE
+mkt = Market(LIVE_ASOF, LIVE_CURVE, LIVE_SURFACE)
+ticks = {k: (k in preset_ticks("semi-annual 2-15", 40, 6)) for k in range(80)}
+rows, npv = build_schedule(mkt, 40, 6, 0.0143, 10e6, ticks)
+ws = wb.create_sheet("Schedule", 4); head(ws, 1, SCHEDULE_COLUMNS)
+for i, r in enumerate(rows, 2):
+    for j, c in enumerate(SCHEDULE_COLUMNS, 1):
+        v = r[c]; cell = ws.cell(row=i, column=j, value=v)
+        if c == "Cancel here?": cell.fill = IN
+ws["Z1"] = "40|6"
+ws.column_dimensions["A"].width = 6
+for col in range(2, 19): ws.column_dimensions[get_column_letter(col)].width = 15
+# ---- Start here ----
+ws = wb.create_sheet("Start here", 0)
+lines = [("How to use this sheet", True), ("", False),
+ ("1. Curve and Vols: paste the SONIA OIS rates and the swaption surface (normal vols by offset from ATM). Set the as-of date on Settings.", False),
+ ("2. Structure: choose the swap term, the fixed rate we pay (or 'fair') and the coupon frequency. Type a preset (e.g. 'six dates') or tick dates yourself on Schedule.", False),
+ ("3. Schedule: one row per coupon period. Tick 'Cancel here?' on the dates the bank may cancel. Turn the column into checkboxes once via Insert > Checkbox.", False),
+ ("4. Set Settings!Run to TRUE. The Mac script (price_sheet.py --watch) prices it and writes Results and the per-date columns on Schedule. Status shows when it finished.", False),
+ ("", False), ("Reading the results", True), ("", False),
+ ("Cancel right, value to bank: what the bank's option is worth on the model. Coupon discount: what paying our fixed rate instead of the par rate is worth to us over the full term. The difference is the bank's take.", False),
+ ("Intrinsic: the forward swap value on the best single date - pure curve arithmetic, nobody argues with it. Best European: that date's option on its own. Bermudan time value: what the other ticked dates add. Multiple = cancel right / best European; ~1.10 is model-fair, 1.07 is a good print, 1.00 means the bank pays only for one date.", False),
+ ("£ per 10 bp of rate: how much value moves when our fixed rate moves 10 bp. Small (~£44k on the 40y) because the option is deep in the money - which is why bank charges and the multiple matter so much in rate terms.", False),
+ ("", False), ("Things to try", True), ("", False),
+ ("Untick every date but one (or preset 'single 2y'): the multiple goes to 1.00 and the value drops to the European. Tick six dates: most of the value comes back. Tick everything to year 40 ('full strip'): little changes past year 15.", False),
+ ("Change the fixed rate: the cancel right and the coupon discount move together; watch the bank's take. Set the rate to 'fair' to solve where they cross.", False),
+ ("Change Mean reversion (1% - 5%): only the Bermudan time value moves. Shift every vol by +10 bp: same. That is the model-dependent slice; everything else is the curve.", False),
+ ("On Schedule, read 'Strike - forward' and 'Intrinsic if cancelled here': they show, before pricing, how deep in the money the bank is on each date.", False)]
+for i, (t, bold) in enumerate(lines, 1):
+    c = ws.cell(row=i, column=1, value=t); c.font = Font(bold=bold, size=12 if bold else 11)
+ws.column_dimensions["A"].width = 140
 wb.save("LOBO_pricer_template.xlsx"); print("xlsx ok")
