@@ -11,7 +11,7 @@ Typing 'fair' as the fixed rate solves the model-fair and dealt rates first (abo
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", message=".*OpenSSL.*")
-import argparse, datetime as dt, re, time
+import argparse, datetime as dt, os, re, time
 import gspread
 from gspread.utils import ValueRenderOption
 import QuantLib as ql
@@ -25,8 +25,16 @@ SC = {name: col_letter(i + 1) for i, name in enumerate(SCHEDULE_COLUMNS)}
 
 
 # ---------------------------------------------------------------- reading the sheet
-def open_sheet(ref, keyfile):
-    gc = gspread.service_account(filename=keyfile)
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+
+
+def open_sheet(ref, keyfile=None):
+    """A key file on the Mac; on Cloud Run the service's own identity (share the sheet with that account)."""
+    if keyfile and os.path.exists(keyfile):
+        gc = gspread.service_account(filename=keyfile)
+    else:
+        import google.auth
+        creds, _ = google.auth.default(scopes=SCOPES); gc = gspread.authorize(creds)
     m = re.search(r"/d/([a-zA-Z0-9-_]+)", ref)
     return gc.open_by_key(m.group(1) if m else ref)
 
@@ -174,6 +182,19 @@ def run(sh):
     return r
 
 
+def run_job(sh, engine=None):
+    """One complete pricing: run, untick Run, write the final status. Used by --once, --watch and the Cloud Run server."""
+    ws = sh.worksheet("Pricer"); t = time.time()
+    if engine: ws.update(range_name=CELL["Engine"], values=[[engine]])
+    try:
+        r = run(sh)
+        msg = "done in %.0f s: cancel right £%s, multiple %.3f" % (time.time() - t, format(round(r["cancel_right"]), ","), r["multiple"]) if r else "nothing ticked"
+    except Exception as e:                       # noqa
+        msg = "error: %s" % e; r = None
+    ws.update(range_name=CELL["Run"], values=[[False]], value_input_option="RAW"); status(sh, msg)
+    return r
+
+
 # ---------------------------------------------------------------- entry points
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--sheet", required=True); ap.add_argument("--key", default="sa-key.json")
@@ -183,26 +204,19 @@ def main():
     if a.init:
         init_sheet(sh); print("layout ready: Pricer, Market, Schedule"); return
     ws = sh.worksheet("Pricer")
-    finish = lambda t, r: (ws.update(range_name=CELL["Run"], values=[[False]], value_input_option="RAW"),
-                           status(sh, "done in %.0f s: cancel right £%s, multiple %.3f" % (time.time() - t, format(round(r["cancel_right"]), ","), r["multiple"]) if r else "nothing ticked"))
     if a.once or not a.watch:
-        t = time.time(); finish(t, run(sh)); return
+        run_job(sh, "Mac, one run"); return
     print("watching '%s' every %ds: tick Pricer!Run (or LOBO > Price now) to price. Ctrl+C to stop." % (sh.title, a.interval))
     last_hb = 0
     try:
         while True:
             if time.time() - last_hb > 30:
-                ws.update(range_name=CELL["Mac watcher"], values=[["connected " + dt.datetime.now().strftime("%H:%M:%S")]]); last_hb = time.time()
+                ws.update(range_name=CELL["Engine"], values=[["Mac connected " + dt.datetime.now().strftime("%H:%M:%S")]]); last_hb = time.time()
             if str(ws.acell(CELL["Run"]).value).strip().upper() == "TRUE":
-                t = time.time()
-                try:
-                    finish(t, run(sh))
-                except Exception as e:                       # noqa
-                    ws.update(range_name=CELL["Run"], values=[[False]], value_input_option="RAW"); status(sh, "error: %s" % e)
-                last_hb = 0
+                run_job(sh); last_hb = 0
             time.sleep(a.interval)
     except KeyboardInterrupt:
-        ws.update(range_name=CELL["Mac watcher"], values=[["disconnected " + dt.datetime.now().strftime("%H:%M")]])
+        ws.update(range_name=CELL["Engine"], values=[["Mac disconnected " + dt.datetime.now().strftime("%H:%M")]])
 
 
 if __name__ == "__main__":

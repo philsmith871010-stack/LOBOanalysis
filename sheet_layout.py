@@ -15,7 +15,7 @@ PRICER = [
     (4, "INPUTS", "h"),
     (5, "Term (years)", "i", 40), (6, "Fixed rate we pay", "ip", 0.0143), (7, "Coupon frequency (months)", "i", 6),
     (8, "Notional", "im", 10_000_000), (9, "Call dates", "id", "semi-annual 2-15"), (10, "Run mode", "id", "Quick"),
-    (11, "Run", "ib", False), (12, "Status", "t", ""), (13, "Mac watcher", "t", ""),
+    (11, "Run", "ib", False), (12, "Status", "t", ""), (13, "Engine", "t", ""),
     (15, "RESULTS", "h"),
     (16, "Priced at", "t"), (17, "Market as-of", "t"), (18, "Fixed rate priced", "p"), (19, "Par swap rate", "p"),
     (20, "Cancel right, value to bank", "m"), (21, "Coupon discount, value to us", "m"), (22, "Bank's take", "m"),
@@ -41,8 +41,8 @@ NOTES = {
     "B6": "A rate like 1.43%, or the word fair: then the script solves the model-fair rate and the two dealt rates (about 2 minutes).",
     "B9": "Preset call dates, applied to the Schedule tab on the next run. Choose 'as ticked on Schedule' to tick dates yourself.",
     "B10": "Quick (about 10 s): price, European ladder, multiple. Full (about 1 min): adds sensitivities, exercise probabilities, expected life and collateral scenarios.",
-    "B11": "Tick to price. The Mac watcher picks it up within a few seconds and unticks it when done. Or use the LOBO menu / button.",
-    "B13": "The Mac script writes the time here every 30 s while it is watching. If this is old, nothing will price.",
+    "B11": "Tick to price (or LOBO menu > Price now). Cloud Run or the Mac watcher picks it up and unticks it when done.",
+    "B13": "Who last priced: the Cloud Run service (called by the Price now button) or the Mac watcher, which writes the time here every 30 s while it is running.",
     "B22": "Cancel right minus coupon discount: what the bank keeps on the model. Zero at the model-fair rate.",
     "B27": "Cancel right / best European. About 1.10 is model-fair; 1.07 is a good print; 1.00 means the bank only paid for one date.",
     "B39": "How much more the bank keeps if our fixed rate is 10 bp higher. Small because the option is deep in the money.",
@@ -103,7 +103,7 @@ def init_pricer(sh, old_struct, old_set):
     ws.clear()
     cells, fmts = [], []
     cells.append(gspread.Cell(1, 1, "LOBO cancellable swap pricer"))
-    cells.append(gspread.Cell(2, 1, "Fill the blue cells, tick Run (or LOBO menu > Price now). The Mac watcher prices within a few seconds and fills the results. Hover a cell for notes."))
+    cells.append(gspread.Cell(2, 1, "Fill the blue cells, then LOBO menu > Price now (or tick Run). Results fill in below; Status shows progress. Hover a cell for notes."))
     fmts += [{"range": "A1", "format": _fmt(bold=True, size=14)}, {"range": "A2", "format": {"textFormat": {"italic": True}}}]
     carry = {"Term (years)": ("Term (years)", 1), "Fixed rate we pay": ("Fixed rate %", 0.01), "Coupon frequency (months)": ("Frequency (months)", 1),
              "Notional": ("Notional", 1), "Mean reversion": ("Mean reversion", 1), "Bank take, collateral": ("Bank take, collateral £", 1),

@@ -33,7 +33,7 @@ Service account: Google Cloud console > new project > enable **Google Sheets API
 Keys > add JSON key. Save the file as `sa-key.json` in this folder (git-ignored). Share the sheet with the service account's
 `client_email` as Editor.
 
-## Running
+## Running from the Mac
 
 ```
 python price_sheet.py --sheet <sheet id or url> --key sa-key.json --init     # build or repair the 3-tab layout (once per sheet)
@@ -45,8 +45,25 @@ python price_sheet.py --sheet <sheet id or url> --key sa-key.json --once     # p
 removes the old tabs). While `--watch` runs, the Pricer tab shows "connected hh:mm:ss" next to Mac watcher; the Run tick is picked up
 within 3 seconds and Status shows progress.
 
-Optional button: paste `apps_script.gs` into Extensions > Apps Script. That adds a **LOBO > Price now** menu (and a function to attach to a
-drawn button) which ticks Run and warns if the Mac watcher is not connected.
+Paste `apps_script.gs` into Extensions > Apps Script for a **LOBO > Price now** menu. Without a Cloud Run URL it just ticks Run for the Mac watcher.
+
+## Running on Cloud Run (always on, no Mac needed)
+
+`server.py` is a tiny web service: the sheet's Price now button POSTs to it, it prices in the background and writes into the sheet.
+Every push to the GitHub branch rebuilds and redeploys it.
+
+1. Cloud Run console > **Deploy container** > **Continuously deploy from a repository**. Connect GitHub, choose this repository and branch,
+   build type **Dockerfile**.
+2. Service settings: region europe-west2; **Allow unauthenticated invocations** (the token below is the guard); container port 8080;
+   memory 1 GiB, CPU 1; **CPU always allocated** (the run continues after the request returns); min instances 0, **max instances 1**;
+   **Service account**: the same one the sheet is shared with (e.g. `lobos-210@lobo-pricer.iam.gserviceaccount.com`);
+   environment variable `PRICER_TOKEN` = any long random string.
+3. In the sheet: Extensions > Apps Script > paste `apps_script.gs` > Project settings > Script properties: `PRICER_URL` = the service URL,
+   `PRICER_TOKEN` = the same string. Save, then in the editor pick `installTriggers` and Run it once (approve the permissions).
+4. Reload the sheet. **LOBO > Price now**, or ticking Run, now calls Cloud Run. Status shows "calling Cloud Run..." then the run's progress;
+   Engine shows "Cloud Run hh:mm:ss". The first call after idle takes an extra 10 to 20 s while the container starts.
+
+Cost is essentially zero: nothing runs between calls. `--watch` on the Mac still works alongside if ever wanted.
 
 ## Layout
 
