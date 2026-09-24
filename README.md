@@ -15,7 +15,7 @@ co-terminal swaptions at the strike, Bermudan priced by backward induction. Cash
 - **Schedule**: one row per coupon period (dates, cashflows, DF, PV, forward rate, intrinsic if cancelled here). The ticks in
   "Cancel here?" are the call schedule. After a run the European value, normal vol and (Full run) cancel probability are filled per ticked date.
 
-Run mode **Quick** (about 10 s): price, ladder, multiple. **Full** (about 1 min): adds sensitivities to rate / vol / reversion, exercise
+Run mode **Quick** (about 10 s): price, ladder, multiple. **Full** (about 1 min): adds sensitivities to rate / vol and the cancel right at 1% and 2% reversion (a bank's likely settings), exercise
 probabilities, expected life and collateral postings under parallel shifts. Typing `fair` as the fixed rate solves the model-fair rate and
 the two dealt rates first (about 2 min); the cell then shows the solved rate.
 

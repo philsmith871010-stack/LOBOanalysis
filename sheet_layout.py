@@ -26,7 +26,7 @@ PRICER = [
     (34, "Model-fair rate", "p"), (35, "Dealt rate, collateral", "p"), (36, "Dealt rate, no collateral", "p"),
     (38, "FULL RUN  (Run mode = Full)", "h"),
     (39, "Bank's take per +10 bp of our rate", "m"), (40, "Cancel right per +10 bp of normal vol", "m"),
-    (41, "Cancel right at 2% reversion", "m"), (42, "Cancel right at 4% reversion", "m"),
+    (41, "Cancel right at 1% reversion", "m"), (42, "Cancel right at 2% reversion", "m"),
     (43, "Expected life (y)", "o"), (44, "Probability cancelled by year 5", "p0"), (45, "Probability cancelled by year 10", "p0"),
     (46, "Probability cancelled by year 15", "p0"), (47, "Probability never cancelled", "p0"),
     (48, "Investor posts if rates -50 bp", "m"), (49, "Investor posts if rates -100 bp", "m"),

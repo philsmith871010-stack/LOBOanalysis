@@ -8,13 +8,13 @@ Y = np.linspace(-8, 8, 321); DY = Y[1] - Y[0]
 
 
 def sensitivities(mkt, s, res):
-    """Bank's take per +10 bp of our rate; cancel right per +10 bp of normal vol; cancel right at reversion 2% and 4%."""
+    """Bank's take per +10 bp of our rate; cancel right per +10 bp of normal vol; cancel right at reversion 1% and 2% (what a bank buying the option is likely to show)."""
     up = price(mkt, replace(s, rate=s.rate + 0.001), europeans=False)
     vol = price(mkt.shifted(vol_bump=0.0010), s, europeans=False)
+    r1 = price(mkt.shifted(reversion=0.01), s, europeans=False)
     r2 = price(mkt.shifted(reversion=0.02), s, europeans=False)
-    r4 = price(mkt.shifted(reversion=0.04), s, europeans=False)
     return dict(take_per_10bp_rate=up["bank_take"] - res["bank_take"], cancel_per_10bp_vol=vol["cancel_right"] - res["cancel_right"],
-                cancel_rev2=r2["cancel_right"], cancel_rev4=r4["cancel_right"])
+                cancel_rev1=r1["cancel_right"], cancel_rev2=r2["cancel_right"])
 
 
 def exercise_profile(mkt, s, res, npath=20000, sub=6, seed=7):

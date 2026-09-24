@@ -175,7 +175,7 @@ def run(sh):
         col = collateral(mkt, s, r)
         cum = profile["cum_by_year"]
         put(ws, "Bank's take per +10 bp of our rate",
-            [round(sen["take_per_10bp_rate"]), round(sen["cancel_per_10bp_vol"]), round(sen["cancel_rev2"]), round(sen["cancel_rev4"]),
+            [round(sen["take_per_10bp_rate"]), round(sen["cancel_per_10bp_vol"]), round(sen["cancel_rev1"]), round(sen["cancel_rev2"]),
              round(profile["expected_life"], 2), round(cum.get(5, 0), 4), round(cum.get(10, 0), 4), round(cum.get(15, 0), 4), round(profile["never"], 4),
              round(col[-50]), round(col[-100]), round(col[-200]), round(col[-300])])
     write_per_date(sched_ws, rows, r, profile)

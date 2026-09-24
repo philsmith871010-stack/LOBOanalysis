@@ -10,7 +10,8 @@ def rate_for_take(mkt, s, take=0.0, tol=25.0, max_iter=8):
     r1 = price(mkt, replace(s, rate=k1), europeans=False); f1 = r1["bank_take"] - take
     for _ in range(max_iter):
         if abs(f1) < tol: break
-        k2 = k1 - f1 * (k1 - k0) / (f1 - f0)
+        k2 = k1 - f1 * (k1 - k0) / (f1 - f0) if f1 != f0 else k1 + 0.001
+        k2 = min(max(k2, k1 - 0.01, -0.015), k1 + 0.01)        # at most 1% per step, never below -1.5% (the smile's shift is 2%)
         k0, f0 = k1, f1
         k1 = k2; r1 = price(mkt, replace(s, rate=k1), europeans=False); f1 = r1["bank_take"] - take
     return k1, price(mkt, replace(s, rate=k1))

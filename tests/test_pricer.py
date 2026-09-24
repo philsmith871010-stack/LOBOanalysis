@@ -42,7 +42,7 @@ def test_full_run_extras_on_six_dates():
     col = collateral(mkt, s, r, shifts=(-0.01,))
     assert 0.5e6 < col[-100] < 1.0e6
     sen = sensitivities(mkt, s, r)
-    assert 20e3 < sen["take_per_10bp_rate"] < 80e3 and sen["cancel_rev4"] > sen["cancel_rev2"]
+    assert 20e3 < sen["take_per_10bp_rate"] < 80e3 and sen["cancel_rev2"] > sen["cancel_rev1"]
 
 
 def test_short_first_call_calibrates():
