@@ -63,7 +63,7 @@ Every push to the GitHub branch rebuilds and redeploys it.
 4. Reload the sheet. **LOBO > Price now**, or ticking Run, now calls Cloud Run. Status shows "calling Cloud Run..." then the run's progress;
    Engine shows "Cloud Run hh:mm:ss". The first call after idle takes an extra 10 to 20 s while the container starts.
 
-Cost is essentially zero: nothing runs between calls. `--watch` on the Mac still works alongside if ever wanted.
+Cost is essentially zero: nothing runs between calls. New projects need the build account granted Developer Connect read-token, Run admin, service-account-user, Artifact Registry writer and log writer roles before the first build succeeds. `--watch` on the Mac still works alongside if ever wanted.
 
 ## Layout
 
