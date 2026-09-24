@@ -29,3 +29,17 @@ def test_schedule_pv_matches_swap():
     assert ticks == {4, 6, 10, 14, 20, 30}
     r = price(mkt, CallableSwap(40, 0.0143, call_periods_list=sorted(ticks)))
     assert r["n_calls"] == 6 and 5.5e6 < r["cancel_right"] < 6.5e6
+
+
+def test_full_run_extras_on_six_dates():
+    from pricer import sensitivities, exercise_profile, collateral
+    mkt = Market(LIVE_ASOF, LIVE_CURVE, LIVE_SURFACE)
+    s = CallableSwap(40, 0.0143, call_periods_list=[4, 6, 10, 14, 20, 30])
+    r = price(mkt, s)
+    prof = exercise_profile(mkt, s, r)
+    assert abs(sum(prof["by_period"].values()) + prof["never"] - 1) < 1e-6
+    assert 3 < prof["expected_life"] < 8 and prof["cum_by_year"][15] > 0.9
+    col = collateral(mkt, s, r, shifts=(-0.01,))
+    assert 0.5e6 < col[-100] < 1.0e6
+    sen = sensitivities(mkt, s, r)
+    assert 20e3 < sen["take_per_10bp_rate"] < 80e3 and sen["cancel_rev4"] > sen["cancel_rev2"]

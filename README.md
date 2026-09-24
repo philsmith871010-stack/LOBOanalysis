@@ -1,42 +1,60 @@
-# LOBO cancellable-swap pricer
+# LOBO cancellable swap pricer
 
-Prices a swap that the bank can cancel on a set of dates (a payer Bermudan on the remaining swap) from two inputs:
-the SONIA OIS curve and the GBP swaption surface. One-factor Gaussian short-rate model (QuantLib `Gsr`), calibrated
-at the strike to the co-terminal swaptions, smile from a shifted-SABR fit per surface row. Produces the value of the
-cancel right, what the coupon discount is worth, the bank's implied take, the European ladder, the best European and
-the multiple. Optionally solves the fair rate and the rate at a given bank take.
+QuantLib-Python pricer for a cancellable swap (we pay a low fixed rate vs SONIA; the bank may cancel on ticked coupon dates),
+driven from a Google Sheet. The Python runs on your Mac and talks to the sheet through a Google service account. Nothing is hosted.
+
+Model: SONIA OIS curve, shifted-SABR smile per surface row, one-factor Gaussian (Hull-White / LGM) calibrated to the
+co-terminal swaptions at the strike, Bermudan priced by backward induction. Cash-settled (collateralised cash price).
+
+## The sheet (3 tabs)
+
+- **Pricer**: blue cells are inputs (term, fixed rate or `fair`, frequency, notional, call-date preset, run mode, Run tick).
+  Results fill below: cancel right, coupon discount, bank's take, best European, multiple, time value. A European ladder to the right,
+  and a Portfolio block showing the net spread on each LOBO at the priced rate. Assumptions (reversion, take levels, spread targets) at the bottom.
+- **Market**: as-of date, SONIA OIS par rates, and the swaption normal-vol surface by offset from ATM. Paste over the blocks.
+- **Schedule**: one row per coupon period (dates, cashflows, DF, PV, forward rate, intrinsic if cancelled here). The ticks in
+  "Cancel here?" are the call schedule. After a run the European value, normal vol and (Full run) cancel probability are filled per ticked date.
+
+Run mode **Quick** (about 10 s): price, ladder, multiple. **Full** (about 1 min): adds sensitivities to rate / vol / reversion, exercise
+probabilities, expected life and collateral postings under parallel shifts. Typing `fair` as the fixed rate solves the model-fair rate and
+the two dealt rates first (about 2 min); the cell then shows the solved rate.
 
 ## Mac setup (once)
 
-    python3 -m venv .venv && source .venv/bin/activate
-    pip install -r requirements.txt
-    pytest -q                     # pins the numbers from the briefing paper (takes ~2 min)
+```
+git clone https://github.com/philsmith871010-stack/LOBOanalysis.git
+cd LOBOanalysis
+python3 -m venv .venv && source .venv/bin/activate
+pip install --upgrade pip && pip install -r requirements.txt
+pytest -q                      # 4 tests, about 2 minutes
+```
 
-## Google Sheet
+Service account: Google Cloud console > new project > enable **Google Sheets API** and **Google Drive API** > Credentials > Service account >
+Keys > add JSON key. Save the file as `sa-key.json` in this folder (git-ignored). Share the sheet with the service account's
+`client_email` as Editor.
 
-Use the shared template (tabs `Curve`, `Vols`, `Settings`, `Structure`, `Results`, `Portfolio`, `Collateral`).
-Paste the curve into `Curve` (tenor, rate %) and the surface into `Vols` (expiry y, tenor y, ATM strike %, then the
-normal vols under the bp-offset headers — any column order, the header decides). Fill `Settings` and `Structure`.
+## Running
 
-To let the script read and write the sheet you need a Google *service account*:
+```
+python price_sheet.py --sheet <sheet id or url> --key sa-key.json --init     # build or repair the 3-tab layout (once per sheet)
+python price_sheet.py --sheet <sheet id or url> --key sa-key.json --watch    # leave running; prices whenever Pricer!Run is ticked
+python price_sheet.py --sheet <sheet id or url> --key sa-key.json --once     # price now and exit
+```
 
-1. console.cloud.google.com → create a project (no billing) → APIs & Services → enable **Google Sheets API** and **Google Drive API**.
-2. IAM & Admin → Service Accounts → Create → Keys → Add key (JSON). Save it as `sa-key.json` next to this README. Never share it.
-3. Share the Google Sheet with the service account's email address (Editor), like you would with a colleague.
+`--init` works on a blank sheet, and on a sheet with the older Curve / Vols / Settings / Structure tabs (it carries the data over and
+removes the old tabs). While `--watch` runs, the Pricer tab shows "connected hh:mm:ss" next to Mac watcher; the Run tick is picked up
+within 3 seconds and Status shows progress.
 
-## Run
+Optional button: paste `apps_script.gs` into Extensions > Apps Script. That adds a **LOBO > Price now** menu (and a function to attach to a
+drawn button) which ticks Run and warns if the Mac watcher is not connected.
 
-    python price_sheet.py --sheet "<sheet url>" --once            # price now and exit (~5-10 s with a fixed rate, ~1 min with "fair")
-    python price_sheet.py --sheet "<sheet url>" --watch           # leave running; a colleague sets Settings!Run to TRUE to price
+## Layout
 
-`Structure!Fixed rate %` takes a number (e.g. `1.43`) or the word `fair`, in which case the script also solves the
-dealt rates at the two bank-take levels in `Settings`. Results land in `Results` with a timestamp; the European ladder
-sits in columns E-G. `caffeinate -i python price_sheet.py ... --watch` keeps the Mac awake while it runs.
-
-## Layout of the package
-
-    pricer/market.py     curve, SABR surface, swap builder
-    pricer/structure.py  CallableSwap + price()  (cancel right, coupon discount, take, European ladder, multiple)
-    pricer/solve.py      rate_for_take() / fair_rate()  (secant on the bank's take)
-    pricer/data.py       the live data set used by the tests, and the sheet-row parser
-    price_sheet.py       Google Sheet glue
+- `pricer/market.py`: curve, pseudo-Ibor SONIA index, SABR fits, `nvol()`, `shifted()` for bumped markets.
+- `pricer/structure.py`: `CallableSwap`, `price()`: calibrate, price the Bermudan, European ladder, multiple.
+- `pricer/solve.py`: `rate_for_take()`, `fair_rate()`.
+- `pricer/analysis.py`: `sensitivities()`, `exercise_profile()` (expected life, cancel probabilities), `collateral()`.
+- `pricer/schedule.py`: per-period schedule rows and the named presets.
+- `sheet_layout.py`: the sheet layout (cell positions, formats, dropdowns, checkboxes) and `init_sheet()`.
+- `price_sheet.py`: reads the sheet, runs, writes back; `--init`, `--once`, `--watch`.
+- `apps_script.gs`: optional menu / button.

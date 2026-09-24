@@ -20,8 +20,8 @@ class Market:
     surface: list of (expiry_years, tenor_years, atm_strike_pct, {offset_bp: normal_vol_bp, ...})
     """
 
-    def __init__(self, asof, curve, surface, reversion=0.03):
-        self.asof = asof
+    def __init__(self, asof, curve, surface, reversion=0.03, fits=None, vol_bump=0.0):
+        self.asof = asof; self.curve_rows = list(curve); self.surface_rows = list(surface); self.vol_bump = vol_bump
         ql.Settings.instance().evaluationDate = asof
         self.cal, self.dc = ql.UnitedKingdom(), ql.Actual365Fixed()
         self.reversion = reversion
@@ -34,14 +34,20 @@ class Market:
         self.index = {m: ql.IborIndex("SONIA-%dM" % m, ql.Period(m, ql.Months), 0, ql.GBPCurrency(), self.cal,
                                       ql.ModifiedFollowing, False, self.dc, self.h) for m in (6, 12)}
         self.disc_engine = ql.DiscountingSwapEngine(self.h)
-        self.fits = {}
-        for e, t, atm, vols in surface:
+        self.fits = dict(fits) if fits else {}
+        for e, t, atm, vols in ([] if fits else surface):
             F = atm / 100
             Ks = [F + o / 1e4 for o in vols]
             mkt = np.array([vols[o] for o in vols]) / 1e4
             res = least_squares(lambda p: [_nvol_from_sabr(p, F, K, e) - v for K, v in zip(Ks, mkt)],
                                 x0=[0.03, -0.2, 0.4], bounds=([1e-4, -0.999, 1e-4], [5, 0.999, 5]))
             self.fits[(e, t)] = (F, res.x, max(abs(res.fun)) * 1e4)
+
+    def shifted(self, curve_shift=0.0, vol_bump=0.0, reversion=None):
+        """Same market with every OIS rate moved by `curve_shift` (decimal) and/or every normal vol by `vol_bump` (decimal);
+        the SABR fits are reused, so this is cheap."""
+        return Market(self.asof, [(t, r + curve_shift * 100) for t, r in self.curve_rows], self.surface_rows,
+                      reversion=self.reversion if reversion is None else reversion, fits=self.fits, vol_bump=self.vol_bump + vol_bump)
 
     def yf(self, d):
         return self.dc.yearFraction(self.asof, d)
@@ -62,7 +68,7 @@ class Market:
         for e in exps:
             pts = sorted(by_exp[e]); ts, vs = zip(*pts)
             vals.append(float(np.interp(tenor_y, ts, vs)))
-        return float(np.interp(expiry_y, exps, vals))
+        return float(np.interp(expiry_y, exps, vals)) + self.vol_bump
 
     def fit_report(self):
         return {k: round(v[2], 2) for k, v in self.fits.items()}

@@ -2,8 +2,8 @@
 import QuantLib as ql
 
 COLUMNS = ["#", "Start", "End", "Pay date", "Accrual (y)", "Fixed cashflow £", "Projected SONIA cashflow £", "Net cashflow £",
-           "Discount factor", "PV of net £", "Cancel here?", "Exercise date", "Forward swap rate from here %", "Strike - forward (bp)",
-           "Remaining annuity £ per 1%", "Intrinsic if cancelled here £", "European value at this date £", "Normal vol at strike (bp)"]
+           "Discount factor", "PV of net £", "Cancel here?", "Exercise date", "Forward swap rate from here", "Strike - forward (bp)",
+           "Remaining annuity £ per 1%", "Intrinsic if cancelled here £", "European value at this date £", "Normal vol at strike (bp)", "Probability cancelled here"]
 
 
 def _d(d):
@@ -33,9 +33,9 @@ def build_schedule(mkt, term_years, freq_months, rate, notional, ticks=None):
         rows.append({"#": k, "Start": _d(start), "End": _d(end), "Pay date": _d(pay), "Accrual (y)": round(acc, 4),
                      "Fixed cashflow £": round(-fx), "Projected SONIA cashflow £": round(fl), "Net cashflow £": round(net),
                      "Discount factor": round(df, 6), "PV of net £": round(net * df), "Cancel here?": bool(ticks.get(k, False)) if ticks else False,
-                     "Exercise date": _d(ex) if k > 0 else "", "Forward swap rate from here %": round(F * 100, 4),
+                     "Exercise date": _d(ex) if k > 0 else "", "Forward swap rate from here": round(F, 6),
                      "Strike - forward (bp)": round((rate - F) * 1e4, 1), "Remaining annuity £ per 1%": round(ann / 100) if ann else "",
-                     "Intrinsic if cancelled here £": round(intrinsic), "European value at this date £": "", "Normal vol at strike (bp)": ""})
+                     "Intrinsic if cancelled here £": round(intrinsic), "European value at this date £": "", "Normal vol at strike (bp)": "", "Probability cancelled here": ""})
     return rows, swap.NPV()
 
 

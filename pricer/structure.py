@@ -50,7 +50,8 @@ def price(mkt, s: CallableSwap, europeans=True, ladder_max=None):
     value = berm.NPV()
     paid = (par - K) * annuity
     out = dict(par=par, annuity=annuity, cancel_right=value, coupon_discount=paid, bank_take=value - paid,
-               calib_err=max(abs(h.calibrationError()) for h in helpers), n_calls=len(calls), nvols=nvols)
+               calib_err=max(abs(h.calibrationError()) for h in helpers), n_calls=len(calls), nvols=nvols,
+               _model=model, _swap=swap, _fd=fd, _ex=ex, _calls=calls)
     if europeans:
         ladder = []
         for k, d in list(zip(calls, ex))[:ladder_max] if ladder_max else zip(calls, ex):
