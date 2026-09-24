@@ -43,3 +43,9 @@ def test_full_run_extras_on_six_dates():
     assert 0.5e6 < col[-100] < 1.0e6
     sen = sensitivities(mkt, s, r)
     assert 20e3 < sen["take_per_10bp_rate"] < 80e3 and sen["cancel_rev4"] > sen["cancel_rev2"]
+
+
+def test_short_first_call_calibrates():
+    mkt = Market(LIVE_ASOF, LIVE_CURVE, LIVE_SURFACE)
+    r = price(mkt, CallableSwap(40, 0.00451, call_periods_list=list(range(1, 31))), europeans=False)
+    assert r["calib_err"] < 0.02

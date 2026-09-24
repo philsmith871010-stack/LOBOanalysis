@@ -40,11 +40,20 @@ def price(mkt, s: CallableSwap, europeans=True, ladder_max=None):
                                          ql.QuoteHandle(ql.SimpleQuote(mkt.nvol(ty, T - ty, K - F))), mkt.index[fm],
                                          ql.Period(fm, ql.Months), mkt.dc, mkt.dc, mkt.h,
                                          ql.BlackCalibrationHelper.RelativePriceError, K, 1.0, ql.Normal, 0.0))
-    model = ql.Gsr(mkt.h, ex[:-1], [ql.QuoteHandle(ql.SimpleQuote(0.01))] * len(ex),
-                   [ql.QuoteHandle(ql.SimpleQuote(mkt.reversion))], T + 1.0)
+    # Start each step's vol near the market normal vol: the helpers are the out-of-the-money swaptions at the strike, and for
+    # short expiries far from the money a too-small start prices them at exactly zero, leaving the optimiser no gradient.
+    starts = [ql.SimpleQuote(min(max(1.5 * nvols[k], 0.005), 0.1)) for k in calls]
+    model = ql.Gsr(mkt.h, ex[:-1], [ql.QuoteHandle(q) for q in starts], [ql.QuoteHandle(ql.SimpleQuote(mkt.reversion))], T + 1.0)
     engine = ql.Gaussian1dSwaptionEngine(model, 64, 7.0, True, False, mkt.h)
     for x in helpers: x.setPricingEngine(engine)
-    model.calibrateVolatilitiesIterative(helpers, ql.LevenbergMarquardt(), ql.EndCriteria(1000, 10, 1e-8, 1e-8, 1e-8))
+    crit = ql.EndCriteria(1000, 10, 1e-8, 1e-8, 1e-8)
+    model.calibrateVolatilitiesIterative(helpers, ql.LevenbergMarquardt(), crit)
+    if max(abs(h.calibrationError()) for h in helpers) > 0.05:          # retry from a higher start for any date that stuck
+        bad = [i for i, h in enumerate(helpers) if abs(h.calibrationError()) > 0.05]
+        vols = list(model.volatility())
+        for i in bad: vols[i] = min(vols[i] * 3, 0.2)
+        model.setParams(ql.Array(vols + [mkt.reversion]))
+        model.calibrateVolatilitiesIterative(helpers, ql.LevenbergMarquardt(), crit)
     berm = ql.Swaption(swap, ql.BermudanExercise(ex), ql.Settlement.Cash, ql.Settlement.CollateralizedCashPrice)
     berm.setPricingEngine(engine)
     value = berm.NPV()
