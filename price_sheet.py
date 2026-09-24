@@ -7,6 +7,9 @@ Tabs: Curve, Vols, Settings, Structure, Schedule (one row per coupon period; tic
 The ticked rows on Schedule ARE the call schedule. Structure!Preset (e.g. "semi-annual 2-15", "six dates",
 "single 2y", "full strip", "none") sets the ticks on the next run and is then cleared.
 """
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", message=".*OpenSSL.*")
 import argparse, datetime as dt, re, time
 import gspread
 import QuantLib as ql
@@ -63,8 +66,8 @@ def sync_schedule(sh, mkt, term, freq, rate, notional, preset):
         ticks = {k: (k in p) for k in range(term * 12 // freq)}
     rows, npv = build_schedule(mkt, term, freq, rate, notional, ticks)
     ws.clear()
-    ws.update("A1", [SCHEDULE_COLUMNS] + [[r[c] for c in SCHEDULE_COLUMNS] for r in rows])
-    ws.update(KEY_CELL, [["%d|%d" % (term, freq)]])
+    ws.update(range_name="A1", values=[SCHEDULE_COLUMNS] + [[r[c] for c in SCHEDULE_COLUMNS] for r in rows])
+    ws.update(range_name=KEY_CELL, values=[["%d|%d" % (term, freq)]])
     return ws, rows, [r["#"] for r in rows if r["Cancel here?"]], npv
 
 
@@ -86,12 +89,12 @@ def run(sh):
     term = int(float(sr["Term (years)"])); freq = int(float(sr["Frequency (months)"]))
     rate_in = str(sr["Fixed rate %"]).strip().lower()
     K = 0.02 if rate_in in ("fair", "solve") else float(rate_in.replace("%", "")) / 100
-    res_ws = get_ws(sh, "Results"); res_ws.update("B1", [["running..."]])
+    res_ws = get_ws(sh, "Results"); res_ws.update(range_name="B1", values=[["running..."]])
     sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, sr.get("Preset", ""))
     if sr.get("Preset", ""):
         ws = sh.worksheet("Structure"); c = ws.find("Preset"); ws.update_cell(c.row, 2, "")
     if not calls:
-        res_ws.update("B1", [["no dates ticked on Schedule"]]); return None
+        res_ws.update(range_name="B1", values=[["no dates ticked on Schedule"]]); return None
     spec = dict(term_years=term, notional=notional, freq_months=freq, call_periods_list=calls)
     out = []
     if rate_in in ("fair", "solve"):
@@ -113,10 +116,10 @@ def run(sh):
             ["Multiple of best European", round(r["multiple"], 3)], ["£ per 10 bp of rate", round(per10bp)],
             ["Calibration error (max, relative)", round(r["calib_err"], 5)], ["Call dates ticked", r["n_calls"]]]
     res_ws.clear()
-    res_ws.update("A1", [["Priced at", dt.datetime.now().strftime("%Y-%m-%d %H:%M")], ["Market as-of", st["As-of date"]],
+    res_ws.update(range_name="A1", values=[["Priced at", dt.datetime.now().strftime("%Y-%m-%d %H:%M")], ["Market as-of", st["As-of date"]],
                         ["Structure", "%dy swap, %d cancel dates (see Schedule)" % (term, len(calls))]] + out)
     ladder = [["European ladder (each ticked date on its own)", "", ""], ["Expiry (y)", "Value £", "Forward swap £"]] + [[e, round(v), round(i)] for e, v, i, _ in r["europeans"]]
-    res_ws.update("E1", ladder)
+    res_ws.update(range_name="E1", values=ladder)
     write_per_date(sched_ws, rows, r)
     return r
 
