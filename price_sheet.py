@@ -18,7 +18,7 @@ import QuantLib as ql
 from pricer import Market, CallableSwap, price, rate_for_take, build_schedule, preset_ticks, SCHEDULE_COLUMNS
 from pricer import sensitivities, exercise_profile, collateral
 from pricer.data import surface_from_rows
-from sheet_layout import CELL, ROW, KEY_CELL, PRESET_CELL, col_letter, get_ws, init_sheet, style_schedule
+from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, col_letter, get_ws, init_sheet, style_schedule
 
 UNF = ValueRenderOption.unformatted
 SC = {name: col_letter(i + 1) for i, name in enumerate(SCHEDULE_COLUMNS)}
@@ -92,6 +92,14 @@ def clear_results(ws):
     ws.batch_clear(RESULT_RANGES)
 
 
+def refresh_labels(ws):
+    """Rewrite the Pricer tab's column-A labels and notes so label changes in sheet_layout reach existing sheets without --init."""
+    cells = [gspread.Cell(row, 1, label) for row, label, *_ in PRICER]
+    ws.update_cells(cells, value_input_option="RAW")
+    try: ws.insert_notes(NOTES)
+    except Exception: pass                      # noqa: notes are cosmetic
+
+
 def put(ws, first_label, values):
     """Write a list of values down column B starting at a labelled row."""
     r0 = ROW[first_label]
@@ -139,7 +147,7 @@ def run(sh):
     mkt, asof = read_market(sh, inp["reversion"])
     term, freq, notional = inp["term"], inp["freq"], inp["notional"]
     fair = inp["rate"] == "fair"; K = 0.02 if fair else inp["rate"]
-    clear_results(ws)
+    clear_results(ws); refresh_labels(ws)
     status(sh, "running: building schedule")
     sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, inp["preset"])
     if not calls:
