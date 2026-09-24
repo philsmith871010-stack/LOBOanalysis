@@ -50,6 +50,32 @@ def get_ws(sh, name, rows=200, cols=30):
         return sh.add_worksheet(name, rows, cols)
 
 
+def progress(sh, msg):
+    """Show what the script is doing while a long run (e.g. 'fair') is in flight."""
+    get_ws(sh, "Results").update(range_name="B1", values=[[msg]])
+    ws = sh.worksheet("Settings"); c = ws.find("Status")
+    if c: ws.update_cell(c.row, 2, "%s %s" % (dt.datetime.now().strftime("%H:%M"), msg))
+    print(msg, flush=True)
+
+
+def set_kv(ws, label, value):
+    c = ws.find(label)
+    if c: ws.update_cell(c.row, 2, value)
+
+
+PORTFOLIO_RATE = '=INDEX(Results!$B:$B,MATCH("Fixed rate priced %",Results!$A:$A,0))'
+
+
+def refresh_portfolio(sh):
+    """Point every Portfolio row at the priced rate by label, so the formulas survive a changing Results layout."""
+    try:
+        ws = sh.worksheet("Portfolio")
+    except gspread.WorksheetNotFound:
+        return
+    n = sum(1 for r in ws.get_all_values()[1:] if r and r[0] != "")
+    if n: ws.update(range_name="D2:D%d" % (n + 1), values=[[PORTFOLIO_RATE]] * n, value_input_option="USER_ENTERED")
+
+
 def sync_schedule(sh, mkt, term, freq, rate, notional, preset):
     """Rebuild the Schedule rows for (term, freq); keep ticks where the period still exists; apply a preset if given."""
     ws = get_ws(sh, "Schedule")
@@ -89,7 +115,7 @@ def run(sh):
     term = int(float(sr["Term (years)"])); freq = int(float(sr["Frequency (months)"]))
     rate_in = str(sr["Fixed rate %"]).strip().lower()
     K = 0.02 if rate_in in ("fair", "solve") else float(rate_in.replace("%", "")) / 100
-    res_ws = get_ws(sh, "Results"); res_ws.update(range_name="B1", values=[["running..."]])
+    res_ws = get_ws(sh, "Results"); progress(sh, "running: building schedule")
     sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, sr.get("Preset", ""))
     if sr.get("Preset", ""):
         ws = sh.worksheet("Structure"); c = ws.find("Preset"); ws.update_cell(c.row, 2, "")
@@ -98,22 +124,27 @@ def run(sh):
     spec = dict(term_years=term, notional=notional, freq_months=freq, call_periods_list=calls)
     out = []
     if rate_in in ("fair", "solve"):
+        progress(sh, "running: solving model-fair rate (1 of 3, ~1 min)")
         k, r = rate_for_take(mkt, CallableSwap(rate=0.02, **spec), 0.0)
+        progress(sh, "running: fair %.3f%%, solving dealt rate with collateral (2 of 3)" % (k * 100))
         kc, _ = rate_for_take(mkt, CallableSwap(rate=k, **spec), float(st["Bank take, collateral £"]))
+        progress(sh, "running: solving dealt rate without collateral (3 of 3)")
         kn, _ = rate_for_take(mkt, CallableSwap(rate=kc, **spec), float(st["Bank take, no collateral £"]))
         out += [["Model-fair rate %", round(k * 100, 3)], ["Dealt rate, collateral %", round(kc * 100, 3)], ["Dealt rate, no collateral %", round(kn * 100, 3)]]
         K = k
+        set_kv(sh.worksheet("Structure"), "Fixed rate %", round(K * 100, 3))   # 'fair' becomes the solved rate
         sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, "")
     else:
+        progress(sh, "running: pricing at %.3f%%" % (K * 100))
         r = price(mkt, CallableSwap(rate=K, **spec))
     bump = price(mkt, CallableSwap(rate=K + 0.001, **spec), europeans=False)
-    per10bp = -(bump["bank_take"] - r["bank_take"])
+    per10bp = bump["bank_take"] - r["bank_take"]
     out += [["Fixed rate priced %", round(K * 100, 3)], ["Par swap rate %", round(r["par"] * 100, 3)], ["Swap value to us (Schedule PV) £", round(swap_npv)],
             ["Annuity £ per 1%", round(r["annuity"] / 100)], ["Cancel right, value to bank £", round(r["cancel_right"])],
             ["Coupon discount, value to us £", round(r["coupon_discount"])], ["Bank's take £", round(r["bank_take"])],
             ["Intrinsic (forward swap) £", round(r["intrinsic"])], ["Best European £", round(r["best_european"])],
             ["Best European expiry (y)", r["best_european_expiry"]], ["Bermudan time value £", round(r["time_value"])],
-            ["Multiple of best European", round(r["multiple"], 3)], ["£ per 10 bp of rate", round(per10bp)],
+            ["Multiple of best European", round(r["multiple"], 3)], ["Bank's take per +10 bp of rate £", round(per10bp)],
             ["Calibration error (max, relative)", round(r["calib_err"], 5)], ["Call dates ticked", r["n_calls"]]]
     res_ws.clear()
     res_ws.update(range_name="A1", values=[["Priced at", dt.datetime.now().strftime("%Y-%m-%d %H:%M")], ["Market as-of", st["As-of date"]],
@@ -121,6 +152,7 @@ def run(sh):
     ladder = [["European ladder (each ticked date on its own)", "", ""], ["Expiry (y)", "Value £", "Forward swap £"]] + [[e, round(v), round(i)] for e, v, i, _ in r["europeans"]]
     res_ws.update(range_name="E1", values=ladder)
     write_per_date(sched_ws, rows, r)
+    refresh_portfolio(sh)
     return r
 
 
@@ -129,7 +161,9 @@ def main():
     ap.add_argument("--once", action="store_true"); ap.add_argument("--watch", action="store_true"); ap.add_argument("--interval", type=int, default=20)
     a = ap.parse_args(); sh = open_sheet(a.sheet, a.key)
     if a.once or not a.watch:
-        r = run(sh)
+        t = time.time(); r = run(sh)
+        ws = sh.worksheet("Settings"); set_kv(ws, "Run", "FALSE")
+        set_kv(ws, "Status", "%s %s" % (dt.datetime.now().strftime("%H:%M"), "ok %.0fs" % (time.time() - t) if r else "nothing ticked"))
         if r: print("done: cancel right £%.0f, multiple %.3f" % (r["cancel_right"], r["multiple"]))
         return
     print("watching %s every %ds (tick Settings!Run to price)" % (sh.title, a.interval))

@@ -45,9 +45,9 @@ ws = wb.create_sheet("Portfolio"); head(ws, 1, ["LOBO term (y)", "Coupon %", "Pr
 loans = [(40, 4.0, 1), (40, 4.25, 1), (40, 4.5, 2), (40, 4.75, 2), (40, 5.0, 2), (40, 5.5, 3), (50, 4.5, 2), (50, 4.75, 2), (50, 5.0, 3), (50, 5.5, 3), (30, 5.0, 1), (30, 5.5, 2)]
 for i, (T, c, pts) in enumerate(loans, 2):
     ws.cell(row=i, column=1, value=T); ws.cell(row=i, column=2, value=c).fill = IN; ws.cell(row=i, column=3, value=pts).fill = IN
-    ws.cell(row=i, column=4, value="=Results!$B$7"); ws.cell(row=i, column=5, value="=ROUND((B%d-D%d)*100,0)" % (i, i)); ws.cell(row=i, column=6, value="=E%d-Settings!$B$6*C%d" % (i, i))
+    ws.cell(row=i, column=4, value='=INDEX(Results!$B:$B,MATCH("Fixed rate priced %",Results!$A:$A,0))'); ws.cell(row=i, column=5, value="=ROUND((B%d-D%d)*100,0)" % (i, i)); ws.cell(row=i, column=6, value="=E%d-Settings!$B$6*C%d" % (i, i))
     ws.cell(row=i, column=7, value='=IF(F%d>=Settings!$B$8,"target",IF(F%d>=Settings!$B$7,"minimum","out"))' % (i, i))
-ws["I1"] = "Uses the fixed rate priced on the Structure tab (Results!B7). For a different term, re-price with that term."
+ws["I1"] = "Uses the fixed rate priced on the Structure tab (looked up by label on Results). For a different term, re-price with that term."
 ws = wb.create_sheet("Collateral"); head(ws, 1, ["Rates move (parallel)", "Investor posts £", "% of notional"])
 for i, (m, v, p) in enumerate([("+50 / +100 bp", 0, 0), ("-25 bp", 160000, 1.6), ("-50 bp", 340000, 3.4), ("-100 bp", 750000, 7.5), ("-150 bp", 1260000, 12.6), ("-200 bp", 1890000, 18.9), ("-300 bp", 3650000, 36.5)], 2):
     ws.cell(row=i, column=1, value=m); ws.cell(row=i, column=2, value=v); ws.cell(row=i, column=3, value=p)
@@ -82,7 +82,7 @@ lines = [("How to use this sheet", True), ("", False),
  ("", False), ("Reading the results", True), ("", False),
  ("Cancel right, value to bank: what the bank's option is worth on the model. Coupon discount: what paying our fixed rate instead of the par rate is worth to us over the full term. The difference is the bank's take.", False),
  ("Intrinsic: the forward swap value on the best single date - pure curve arithmetic, nobody argues with it. Best European: that date's option on its own. Bermudan time value: what the other ticked dates add. Multiple = cancel right / best European; ~1.10 is model-fair, 1.07 is a good print, 1.00 means the bank pays only for one date.", False),
- ("£ per 10 bp of rate: how much value moves when our fixed rate moves 10 bp. Small (~£44k on the 40y) because the option is deep in the money - which is why bank charges and the multiple matter so much in rate terms.", False),
+ ("Bank's take per +10 bp of rate: how much the bank's take rises when our fixed rate goes up 10 bp. Small (~£44k on the 40y) because the option is deep in the money - which is why bank charges and the multiple matter so much in rate terms.", False),
  ("", False), ("Things to try", True), ("", False),
  ("Untick every date but one (or preset 'single 2y'): the multiple goes to 1.00 and the value drops to the European. Tick six dates: most of the value comes back. Tick everything to year 40 ('full strip'): little changes past year 15.", False),
  ("Change the fixed rate: the cancel right and the coupon discount move together; watch the bank's take. Set the rate to 'fair' to solve where they cross.", False),
