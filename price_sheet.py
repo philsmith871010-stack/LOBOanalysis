@@ -76,6 +76,14 @@ def status(sh, msg):
     print(msg, flush=True)
 
 
+RESULT_RANGES = ["B16:B31", "B34:B36", "B39:B51", "D17:F120"]
+
+
+def clear_results(ws):
+    """Blank every result cell so it is obvious which numbers belong to the run in progress."""
+    ws.batch_clear(RESULT_RANGES)
+
+
 def put(ws, first_label, values):
     """Write a list of values down column B starting at a labelled row."""
     r0 = ROW[first_label]
@@ -123,6 +131,7 @@ def run(sh):
     mkt, asof = read_market(sh, inp["reversion"])
     term, freq, notional = inp["term"], inp["freq"], inp["notional"]
     fair = inp["rate"] == "fair"; K = 0.02 if fair else inp["rate"]
+    clear_results(ws)
     status(sh, "running: building schedule")
     sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, inp["preset"])
     if not calls:
@@ -140,7 +149,6 @@ def run(sh):
         K = k
         sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, inp["preset"])
     else:
-        put(ws, "Model-fair rate", ["", "", ""])
         status(sh, "running: pricing at %.3f%%" % (K * 100))
         r = price(mkt, CallableSwap(rate=K, **spec))
     s = CallableSwap(rate=K, **spec)
@@ -148,7 +156,6 @@ def run(sh):
                           K, r["par"], round(r["cancel_right"]), round(r["coupon_discount"]), round(r["bank_take"]), round(r["intrinsic"]),
                           round(r["best_european"]), r["best_european_expiry"], round(r["time_value"]), round(r["multiple"], 3), r["n_calls"],
                           round(swap_npv), round(r["annuity"] / 100), round(r["calib_err"], 5)])
-    ws.batch_clear(["D17:F120"])
     ws.update(range_name="D17", values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
     profile = None
     if inp["mode"] == "full":
@@ -163,8 +170,6 @@ def run(sh):
             [round(sen["take_per_10bp_rate"]), round(sen["cancel_per_10bp_vol"]), round(sen["cancel_rev2"]), round(sen["cancel_rev4"]),
              round(profile["expected_life"], 2), round(cum.get(5, 0), 4), round(cum.get(10, 0), 4), round(cum.get(15, 0), 4), round(profile["never"], 4),
              round(col[-50]), round(col[-100]), round(col[-200]), round(col[-300])])
-    else:
-        put(ws, "Bank's take per +10 bp of our rate", [""] * 13)
     write_per_date(sched_ws, rows, r, profile)
     return r
 
