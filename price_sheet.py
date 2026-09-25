@@ -158,7 +158,7 @@ def run(sh):
     if stress: mkt = mkt.shifted(curve_shift=inp["curve_bp"] / 1e4, vol_bump=inp["vol_bp"] / 1e4)
     term, freq, notional = inp["term"], inp["freq"], inp["notional"]
     fair = inp["rate"] == "fair"; K = 0.02 if fair else inp["rate"]
-    clear_results(ws); refresh_labels(ws)
+    clear_results(ws)                        # values only; a run never touches labels, formats, widths or groups
     status(sh, "running: building schedule")
     sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, inp["preset"])
     if not calls:

@@ -12,7 +12,7 @@ BLUE, GREY, GREEN = {"red": 0.87, "green": 0.92, "blue": 0.98}, {"red": 0.93, "g
 
 # ---- Pricer tab: (row, label, kind, default). kind: h=header, i=input, o=output, m=money, p=percent, b=bool, d=dropdown, t=text
 # A label's key is the text before a double space; the bracketed part after it is explanation only.
-LAYOUT_VERSION = "v5"
+LAYOUT_VERSION = "v4"                    # bump only when the Pricer tab must be rebuilt: a rebuild wipes hand formatting
 PRICER = [
     (1, "INPUTS", "h"),
     (2, "Swap term (years)", "i", 40), (3, "Fixed rate we pay", "ip", 0.0143), (4, "Coupon frequency (months)", "i", 6),
