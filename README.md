@@ -8,15 +8,17 @@ co-terminal swaptions at the strike, Bermudan priced by backward induction. Cash
 
 ## The sheet (3 tabs)
 
-- **Pricer**: blue cells are inputs (term, fixed rate or `fair`, frequency, notional, call-date preset, run mode, Run tick).
-  Results fill below: cancel right, coupon discount, bank's take, best European, multiple, time value. A European ladder to the right,
-  and a Portfolio block showing the net spread on each LOBO at the priced rate. Assumptions (reversion, take levels, spread targets) at the bottom.
+- **Pricer**: blue cells are inputs (term, fixed rate or `fair`, frequency, notional, call-date preset, and two stress cells that shift
+  the curve or the vols in bp before pricing). Results: swap value, bank's cancel right and take, best single-date option, Bermudan
+  time value, multiple, expected life. Below that an investor return table: net spread over SONIA for each LOBO coupon and premium,
+  amortising the premium over the expected life, 5, 10, 15 years and the full term (live formulas, edit the coupons freely). A European
+  ladder to the right. Everything else (Run mode Full, dealt rates, sensitivities, collateral, assumptions) sits in a collapsed row group
+  marked ADVANCED; click the + in the left margin to open it.
 - **Market**: as-of date, SONIA OIS par rates, and the swaption normal-vol surface by offset from ATM. Paste over the blocks.
 - **Schedule**: one row per coupon period (dates, cashflows, DF, PV, forward rate, intrinsic if cancelled here). The ticks in
   "Cancel here?" are the call schedule. After a run the European value, normal vol and (Full run) cancel probability are filled per ticked date.
 
-Run mode **Quick** (about 10 s): price, ladder, multiple. **Full** (about 1 min): adds sensitivities to rate / vol and the cancel right at 1% and 2% reversion (a bank's likely settings), exercise
-probabilities, expected life and collateral postings under parallel shifts. Typing `fair` as the fixed rate solves the model-fair rate and
+Run mode **Quick** (about 15 s): price, ladder, multiple, expected life. **Full** (about 1 min): adds sensitivities to rate and vol, the cancel right at 1% and 2% reversion (a bank's likely settings), and collateral postings under parallel shifts. Typing `fair` as the fixed rate solves the model-fair rate and
 the two dealt rates first (about 2 min); the cell then shows the solved rate.
 
 ## Mac setup (once)
@@ -41,8 +43,8 @@ python price_sheet.py --sheet <sheet id or url> --key sa-key.json --watch    # l
 python price_sheet.py --sheet <sheet id or url> --key sa-key.json --once     # price now and exit
 ```
 
-`--init` works on a blank sheet, and on a sheet with the older Curve / Vols / Settings / Structure tabs (it carries the data over and
-removes the old tabs). While `--watch` runs, the Pricer tab shows "connected hh:mm:ss" next to Mac watcher; the Run tick is picked up
+`--init` is for a blank sheet (it also migrates the oldest Curve / Vols / Settings / Structure layout). An existing sheet is brought up to the
+current Pricer layout automatically on its next run, keeping its inputs and market data. While `--watch` runs, the Pricer tab shows "connected hh:mm:ss" next to Mac watcher; the Run tick is picked up
 within 3 seconds and Status shows progress.
 
 Paste `apps_script.gs` into Extensions > Apps Script for a **LOBO > Price now** menu. Without a Cloud Run URL it just ticks Run for the Mac watcher.

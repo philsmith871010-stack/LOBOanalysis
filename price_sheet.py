@@ -18,7 +18,7 @@ import QuantLib as ql
 from pricer import Market, CallableSwap, price, rate_for_take, build_schedule, preset_ticks, SCHEDULE_COLUMNS
 from pricer import sensitivities, exercise_profile, collateral
 from pricer.data import surface_from_rows
-from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, col_letter, get_ws, init_sheet, style_schedule
+from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, LADDER_COL, RESULT_RANGES, col_letter, get_ws, init_sheet, style_schedule, ensure_layout, write_return_formulas
 
 UNF = ValueRenderOption.unformatted
 SC = {name: col_letter(i + 1) for i, name in enumerate(SCHEDULE_COLUMNS)}
@@ -57,11 +57,13 @@ def read_inputs(sh):
     ws = sh.worksheet("Pricer")
     col = ws.get("B1:B%d" % max(ROW.values()), value_render_option=UNF)
     v = lambda label: (col[ROW[label] - 1][0] if len(col) >= ROW[label] and col[ROW[label] - 1] else "")
+    num = lambda label, d=0.0: float(str(v(label)).replace(",", "") or d)
     rate = str(v("Fixed rate we pay")).strip().lower()
-    return dict(term=int(float(v("Term (years)"))), rate=("fair" if rate in ("fair", "solve") else pct(rate)),
-                freq=int(float(v("Coupon frequency (months)"))), notional=float(str(v("Notional")).replace(",", "")),
+    return dict(term=int(num("Swap term (years)")), rate=("fair" if rate in ("fair", "solve") else pct(rate)),
+                freq=int(num("Coupon frequency (months)")), notional=num("Notional"),
                 preset=str(v("Call dates")).strip(), mode=str(v("Run mode")).strip().lower() or "quick",
-                reversion=pct(v("Mean reversion")), take_c=float(v("Bank take, collateral")), take_n=float(v("Bank take, no collateral")))
+                curve_bp=num("Stress: curve shift (bp)"), vol_bp=num("Stress: vol shift (bp)"),
+                reversion=pct(v("Mean reversion")), take_c=num("Bank take, collateral"), take_n=num("Bank take, no collateral"))
 
 
 def read_market(sh, reversion):
@@ -84,7 +86,6 @@ def status(sh, msg):
     print(msg, flush=True)
 
 
-RESULT_RANGES = ["B16:B31", "B34:B36", "B39:B51", "D17:F120"]
 
 
 def clear_results(ws):
@@ -100,10 +101,15 @@ def refresh_labels(ws):
     except Exception: pass                      # noqa: notes are cosmetic
 
 
-def put(ws, first_label, values):
-    """Write a list of values down column B starting at a labelled row."""
-    r0 = ROW[first_label]
-    ws.update(range_name="B%d:B%d" % (r0, r0 + len(values) - 1), values=[[x] for x in values], value_input_option="RAW")
+def put(ws, values):
+    """Write {label: value} into column B of the labelled rows, in one call."""
+    ws.update_cells([gspread.Cell(ROW[k], 2, v) for k, v in values.items()], value_input_option="RAW")
+
+
+def annuity_years(mkt, years):
+    """Value today of 1 per year to a horizon, paid semi-annually, on the SONIA curve (in years of annuity)."""
+    n = max(1, int(round(years * 2)))
+    return sum(0.5 * mkt.curve.discount(mkt.cal.advance(mkt.asof, ql.Period(6 * k, ql.Months))) for k in range(1, n + 1))
 
 
 def sync_schedule(sh, mkt, term, freq, rate, notional, preset):
@@ -143,8 +149,13 @@ def write_per_date(ws, rows, result, profile=None):
 
 # ---------------------------------------------------------------- the run
 def run(sh):
+    ensure_layout(sh)
     inp = read_inputs(sh); ws = sh.worksheet("Pricer")
     mkt, asof = read_market(sh, inp["reversion"])
+    stress = []
+    if inp["curve_bp"]: stress.append("curve %+.0f bp" % inp["curve_bp"])
+    if inp["vol_bp"]: stress.append("vols %+.0f bp" % inp["vol_bp"])
+    if stress: mkt = mkt.shifted(curve_shift=inp["curve_bp"] / 1e4, vol_bump=inp["vol_bp"] / 1e4)
     term, freq, notional = inp["term"], inp["freq"], inp["notional"]
     fair = inp["rate"] == "fair"; K = 0.02 if fair else inp["rate"]
     clear_results(ws); refresh_labels(ws)
@@ -153,6 +164,7 @@ def run(sh):
     if not calls:
         status(sh, "nothing to price: no dates ticked on Schedule"); return None
     spec = dict(term_years=term, notional=notional, freq_months=freq, call_periods_list=calls)
+    out = {}
     if fair:
         status(sh, "running: solving model-fair rate (1 of 3, about a minute)")
         k, r = rate_for_take(mkt, CallableSwap(rate=0.02, **spec), 0.0)
@@ -160,32 +172,39 @@ def run(sh):
         kc, _ = rate_for_take(mkt, CallableSwap(rate=k, **spec), inp["take_c"])
         status(sh, "running: solving dealt rate without collateral (3 of 3)")
         kn, _ = rate_for_take(mkt, CallableSwap(rate=kc, **spec), inp["take_n"])
-        put(ws, "Model-fair rate", [k, kc, kn])
+        out.update({"Model-fair rate": k, "Dealt rate, collateral": kc, "Dealt rate, no collateral": kn})
         ws.update(range_name=CELL["Fixed rate we pay"], values=[[k]], value_input_option="RAW")       # 'fair' becomes the solved rate
         K = k
         sched_ws, rows, calls, swap_npv = sync_schedule(sh, mkt, term, freq, K, notional, inp["preset"])
     else:
-        status(sh, "running: pricing at %.3f%%" % (K * 100))
+        status(sh, "running: pricing at %.3f%%%s" % (K * 100, (" with " + ", ".join(stress)) if stress else ""))
         r = price(mkt, CallableSwap(rate=K, **spec))
     s = CallableSwap(rate=K, **spec)
-    put(ws, "Priced at", [dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "%04d-%02d-%02d" % (asof.year(), asof.month(), asof.dayOfMonth()),
-                          K, r["par"], round(r["cancel_right"]), round(r["coupon_discount"]), round(r["bank_take"]), round(r["intrinsic"]),
-                          round(r["best_european"]), r["best_european_expiry"], round(r["time_value"]), round(r["multiple"], 3), r["n_calls"],
-                          round(swap_npv), round(r["annuity"] / 100), round(r["calib_err"], 5)])
-    ws.update(range_name="D17", values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
-    profile = None
+    status(sh, "running: expected life")
+    profile = exercise_profile(mkt, s, r); cum = profile["cum_by_year"]
+    life = profile["expected_life"]
+    out.update({"Priced at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "Market as-of": "%04d-%02d-%02d" % (asof.year(), asof.month(), asof.dayOfMonth()),
+                "Stress applied": ", ".join(stress) if stress else "none", "Fixed rate priced": K, "Par swap rate": r["par"],
+                "Swap value to us": round(r["coupon_discount"]), "Bank's cancel right": round(r["cancel_right"]), "Bank's take": round(r["bank_take"]),
+                "Best single-date option": round(r["best_european"]), "Best single date (years)": r["best_european_expiry"],
+                "Bermudan time value": round(r["time_value"]), "Multiple of best European": round(r["multiple"], 3),
+                "Expected life (years)": round(life, 1), "Chance cancelled by year 5": round(cum.get(5, 0), 4), "Call dates ticked": r["n_calls"],
+                "Chance cancelled by year 10": round(cum.get(10, 0), 4), "Chance cancelled by year 15": round(cum.get(15, 0), 4), "Chance never cancelled": round(profile["never"], 4),
+                "Intrinsic on the best single date": round(r["intrinsic"]), "Annuity per 1%": round(r["annuity"] / 100),
+                "Swap value from Schedule cashflows": round(swap_npv), "Calibration error (max, relative)": round(r["calib_err"], 5)})
+    put(ws, out)
+    ws.update(range_name="C35:G35", values=[[round(annuity_years(mkt, y), 2) for y in (life, 5, 10, 15, term)]], value_input_option="RAW")
+    write_return_formulas(ws)
+    ws.update(range_name="%s18" % LADDER_COL, values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
     if inp["mode"] == "full":
         status(sh, "running: sensitivities (rate, vol, reversion)")
         sen = sensitivities(mkt, s, r)
-        status(sh, "running: exercise probabilities and expected life")
-        profile = exercise_profile(mkt, s, r)
         status(sh, "running: collateral scenarios")
         col = collateral(mkt, s, r)
-        cum = profile["cum_by_year"]
-        put(ws, "Bank's take per +10 bp of our rate",
-            [round(sen["take_per_10bp_rate"]), round(sen["cancel_per_10bp_vol"]), round(sen["cancel_rev1"]), round(sen["cancel_rev2"]),
-             round(profile["expected_life"], 2), round(cum.get(5, 0), 4), round(cum.get(10, 0), 4), round(cum.get(15, 0), 4), round(profile["never"], 4),
-             round(col[-50]), round(col[-100]), round(col[-200]), round(col[-300])])
+        put(ws, {"Bank's take per +10 bp of our rate": round(sen["take_per_10bp_rate"]), "Cancel right per +10 bp of normal vol": round(sen["cancel_per_10bp_vol"]),
+                 "Cancel right at 1% reversion": round(sen["cancel_rev1"]), "Cancel right at 2% reversion": round(sen["cancel_rev2"]),
+                 "Investor posts if rates -50 bp": round(col[-50]), "Investor posts if rates -100 bp": round(col[-100]),
+                 "Investor posts if rates -200 bp": round(col[-200]), "Investor posts if rates -300 bp": round(col[-300])})
     write_per_date(sched_ws, rows, r, profile)
     return r
 

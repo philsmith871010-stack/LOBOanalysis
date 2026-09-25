@@ -5,14 +5,15 @@
 // Without PRICER_URL the menu just ticks Run for the Mac watcher.
 // Optional button: Insert > Drawing, draw a shape labelled "Price", insert, its three dots > Assign script > priceNow.
 
-var RESULT_RANGES = ['B16:B31', 'B34:B36', 'B39:B51', 'D17:F120'];
+// The Pricer tab lists the ranges to clear in hidden cell Z3, so layout changes never need this script re-pasted.
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('LOBO').addItem('Price now', 'priceNow').addToUi();
 }
 
 function clearResults_(sh) {
-  RESULT_RANGES.forEach(function (r) { sh.getRange(r).clearContent(); });
+  var spec = String(sh.getRange('Z3').getValue() || '');
+  spec.split(',').forEach(function (r) { r = r.trim(); if (r) sh.getRange(r).clearContent(); });
   var sc = SpreadsheetApp.getActive().getSheetByName('Schedule');
   if (sc && sc.getLastRow() > 1) sc.getRange(2, 17, sc.getLastRow() - 1, 3).clearContent();   // European value, vol, probability
 }

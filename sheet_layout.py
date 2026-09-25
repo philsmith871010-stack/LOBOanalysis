@@ -11,47 +11,66 @@ MONEY, PCT, PCT0, PCT1 = '"£"#,##0', "0.000%", "0%", "0.0%"
 BLUE, GREY, GREEN = {"red": 0.87, "green": 0.92, "blue": 0.98}, {"red": 0.93, "green": 0.93, "blue": 0.93}, {"red": 0.89, "green": 0.96, "blue": 0.89}
 
 # ---- Pricer tab: (row, label, kind, default). kind: h=header, i=input, o=output, m=money, p=percent, b=bool, d=dropdown, t=text
+# A label's key is the text before a double space; the bracketed part after it is explanation only.
+LAYOUT_VERSION = "v3"
 PRICER = [
     (4, "INPUTS", "h"),
-    (5, "Term (years)", "i", 40), (6, "Fixed rate we pay", "ip", 0.0143), (7, "Coupon frequency (months)", "i", 6),
-    (8, "Notional", "im", 10_000_000), (9, "Call dates", "id", "semi-annual 2-15"), (10, "Run mode", "id", "Quick"),
-    (11, "Run", "ib", False), (12, "Status", "t", ""), (13, "Engine", "t", ""),
-    (15, "RESULTS", "h"),
-    (16, "Priced at", "t"), (17, "Market as-of", "t"), (18, "Fixed rate priced", "p"), (19, "Par swap rate", "p"),
-    (20, "Cancel right, value to bank", "m"), (21, "Coupon discount, value to us", "m"), (22, "Bank's take", "m"),
-    (23, "Intrinsic, best single date", "m"), (24, "Best European", "m"), (25, "Best European expiry (y)", "o"),
-    (26, "Bermudan time value", "m"), (27, "Multiple of best European", "o"), (28, "Call dates ticked", "o"),
-    (29, "Swap value to us (Schedule PV)", "m"), (30, "Annuity per 1%", "m"), (31, "Calibration error (max, relative)", "o"),
-    (33, "FAIR RATE  (type fair in B6)", "h"),
-    (34, "Model-fair rate", "p"), (35, "Dealt rate, collateral", "p"), (36, "Dealt rate, no collateral", "p"),
-    (38, "FULL RUN  (Run mode = Full)", "h"),
-    (39, "Bank's take per +10 bp of our rate", "m"), (40, "Cancel right per +10 bp of normal vol", "m"),
-    (41, "Cancel right at 1% reversion", "m"), (42, "Cancel right at 2% reversion", "m"),
-    (43, "Expected life (y)", "o"), (44, "Probability cancelled by year 5", "p0"), (45, "Probability cancelled by year 10", "p0"),
-    (46, "Probability cancelled by year 15", "p0"), (47, "Probability never cancelled", "p0"),
-    (48, "Investor posts if rates -50 bp", "m"), (49, "Investor posts if rates -100 bp", "m"),
-    (50, "Investor posts if rates -200 bp", "m"), (51, "Investor posts if rates -300 bp", "m"),
-    (53, "ASSUMPTIONS", "h"),
-    (54, "Mean reversion", "ip", 0.03), (55, "Bank take, collateral", "im", 150_000), (56, "Bank take, no collateral", "im", 350_000),
-    (57, "bp of spread per premium point", "i", 23), (58, "Investor minimum spread bp", "i", 250), (59, "Investor target spread bp", "i", 300),
+    (5, "Swap term (years)", "i", 40), (6, "Fixed rate we pay", "ip", 0.0143), (7, "Coupon frequency (months)", "i", 6),
+    (8, "Notional", "im", 10_000_000), (9, "Call dates", "id", "semi-annual 2-15"),
+    (10, "Stress: curve shift (bp)", "i", 0), (11, "Stress: vol shift (bp)", "i", 0),
+    (12, "Run", "ib", False), (13, "Status", "t", ""), (14, "Engine", "t", ""),
+    (16, "RESULTS", "h"),
+    (17, "Priced at", "t"), (18, "Market as-of", "t"), (19, "Stress applied", "t"),
+    (20, "Fixed rate priced", "p"), (21, "Par swap rate", "p"),
+    (22, "Swap value to us", "m"), (23, "Bank's cancel right", "m"), (24, "Bank's take", "m"),
+    (25, "Best single-date option  (European)", "m"), (26, "Best single date (years)", "o"),
+    (27, "Bermudan time value  (what the other dates add)", "m"), (28, "Multiple of best European", "o"),
+    (29, "Expected life (years)", "o"), (30, "Chance cancelled by year 5", "p0"), (31, "Call dates ticked", "o"),
+    (32, "Model-fair rate  (when fair is typed)", "p"),
+    (34, "INVESTOR RETURN  (net spread over SONIA in bp, after the premium paid for the loan, for the years the swap runs)", "h"),
+    (35, "Years of annuity to each horizon", "t"),
+    (36, "LOBO coupon", "t"),
+    (44, "ADVANCED  (click + in the left margin to expand)", "h"),
+    (45, "Run mode", "id", "Quick"),
+    (46, "Dealt rate, collateral", "p"), (47, "Dealt rate, no collateral", "p"),
+    (48, "Bank's take per +10 bp of our rate", "m"), (49, "Cancel right per +10 bp of normal vol", "m"),
+    (50, "Cancel right at 1% reversion", "m"), (51, "Cancel right at 2% reversion", "m"),
+    (52, "Chance cancelled by year 10", "p0"), (53, "Chance cancelled by year 15", "p0"), (54, "Chance never cancelled", "p0"),
+    (55, "Investor posts if rates -50 bp", "m"), (56, "Investor posts if rates -100 bp", "m"),
+    (57, "Investor posts if rates -200 bp", "m"), (58, "Investor posts if rates -300 bp", "m"),
+    (59, "Intrinsic on the best single date", "m"), (60, "Annuity per 1%", "m"),
+    (61, "Swap value from Schedule cashflows  (check)", "m"), (62, "Calibration error (max, relative)", "o"),
+    (63, "Mean reversion", "ip", 0.03), (64, "Bank take, collateral", "im", 150_000), (65, "Bank take, no collateral", "im", 350_000),
 ]
 ROW = {label.split("  (")[0]: row for row, label, *_ in PRICER}
 CELL = {k: "B%d" % ROW[k] for k in ROW}
-NOTES = {
-    "B6": "A rate like 1.43%, or the word fair: then the script solves the model-fair rate and the two dealt rates (about 2 minutes).",
-    "B9": "Preset call dates, applied to the Schedule tab on the next run. Choose 'as ticked on Schedule' to tick dates yourself.",
-    "B10": "Quick (about 10 s): price, European ladder, multiple. Full (about 1 min): adds sensitivities, exercise probabilities, expected life and collateral scenarios.",
-    "B11": "Tick to price (or LOBO menu > Price now). Cloud Run or the Mac watcher picks it up and unticks it when done.",
-    "B13": "Who last priced: the Cloud Run service (called by the Price now button) or the Mac watcher, which writes the time here every 30 s while it is running.",
-    "B22": "Cancel right minus coupon discount: what the bank keeps on the model. Zero at the model-fair rate.",
-    "B27": "Cancel right / best European. About 1.10 is model-fair; 1.07 is a good print; 1.00 means the bank only paid for one date.",
-    "B39": "How much more the bank keeps if our fixed rate is 10 bp higher. Small because the option is deep in the money.",
-    "B48": "Mark-to-market the investor would post to the bank today under a CSA if the whole curve moved by this much.",
-}
-PORTFOLIO_LOANS = [(40, 0.04, 1), (40, 0.0425, 1), (40, 0.045, 2), (40, 0.0475, 2), (40, 0.05, 2), (40, 0.055, 3),
-                   (50, 0.045, 2), (50, 0.0475, 2), (50, 0.05, 3), (50, 0.055, 3), (30, 0.05, 1), (30, 0.055, 2)]
-LADDER_COL, PORT_COL = "D", "H"          # European ladder in D:F, portfolio in H:N, both from row 15
+ADVANCED_ROWS = (45, 65)                 # collapsed row group (inclusive)
+RET_HEAD, RET_ROWS = 36, (37, 42)        # investor return table: header row, first and last data rows
+RET_LOANS = [(0.045, 1), (0.0475, 2), (0.05, 2), (0.05, 3), (0.055, 2), (0.055, 3)]
+RET_HORIZONS = ["5 years", "10 years", "15 years", "Full term"]      # after the expected-life column
+LADDER_COL = "I"                         # European ladder in I:K from row 16
+VERSION_CELL, CLEAR_CELL = "Z1", "Z3"    # on Pricer: layout version; the result ranges the button clears (read by apps_script.gs)
+RESULT_RANGES = ["B17:B32", "B46:B62", "C35:G35", "I18:K120"]
 KEY_CELL, PRESET_CELL = "Z1", "Z2"       # on Schedule: 'term|freq' of the current rows, last preset applied
+NOTES = {
+    "B6": "A rate like 1.43%, or the word fair: the script then solves the rate at which the bank's take is zero (about 2 minutes) and writes it here.",
+    "B9": "Preset call dates, applied to the Schedule tab on the next run. Choose 'as ticked on Schedule' to tick dates yourself.",
+    "B10": "Stress test: moves every SONIA rate by this many bp before pricing (e.g. -100). Results then show the stressed world. 0 = today's market.",
+    "B11": "Stress test: moves every swaption normal vol by this many bp before pricing (e.g. +20). 0 = today's market.",
+    "B12": "Tick to price (or LOBO menu > Price now). Results are cleared, then refilled in about 15 seconds.",
+    "B14": "Who last priced: the Cloud Run service (from the button) or a Mac running the watcher.",
+    "B22": "What paying our fixed rate instead of the par rate is worth to us over the full term, on today's curve. Certain, no model.",
+    "B23": "What the bank's right to cancel is worth on the model. This is what the bank is paying for with the low fixed rate.",
+    "B24": "Cancel right minus swap value: what the bank keeps at this fixed rate. Zero at the model-fair rate. Negative means the bank is overpaying.",
+    "B25": "The most valuable single cancel date on its own: a plain European swaption, market vols, no model judgement. A floor for what the bank should pay.",
+    "B28": "Cancel right divided by the best European. About 1.10 on our model, 1.06-1.07 on a bank's usual settings, 1.00 means the bank only paid for one date.",
+    "B29": "Model's expected time until the bank cancels (full term if never). Drives the return table's first column.",
+    "A34": "Net spread = LOBO coupon - fixed rate priced - premium spread over the horizon. Edit coupons and premiums; the cells update without a rerun.",
+    "A35": "How many years of 1% a point of premium is spread over. 1 point over 5 years costs about 22 bp a year; over 40 years about 6 bp.",
+    "B48": "How much more the bank keeps if our fixed rate is 10 bp higher. Small because the option is deep in the money, which is why bank charges matter so much in rate terms.",
+    "B55": "Mark-to-market the investor would post to the bank today under a CSA if the whole curve moved by this much.",
+    "B63": "Model judgement, not market data. 3% is our setting; a bank buying the option will show 1-2%, which lowers the cancel right and raises the fair rate.",
+}
 
 MARKET_ASOF, CURVE_HEAD, VOL_HEAD = "B1", 4, 4     # Market!B1 as-of; curve header row 4 (A:B); vol header row 4 (D onwards)
 
@@ -98,58 +117,110 @@ def _num(v, default):
         return default
 
 
-def init_pricer(sh, old_struct, old_set):
+CARRY = {"Swap term (years)": ["Term (years)"], "Fixed rate we pay": ["Fixed rate %"], "Coupon frequency (months)": ["Frequency (months)"],
+         "Mean reversion": [], "Bank take, collateral": ["Bank take, collateral £"], "Bank take, no collateral": ["Bank take, no collateral £"],
+         "Notional": [], "Call dates": [], "Run mode": [], "Stress: curve shift (bp)": [], "Stress: vol shift (bp)": []}
+
+
+def _carried(key, old):
+    """Value for an input from an older layout (same label, or a listed older label; '%'-labelled rates were in percent units)."""
+    for lab in [key] + CARRY.get(key, []):
+        if lab in old and str(old[lab]).strip() != "":
+            v = old[lab]
+            if str(v).strip().lower() in ("fair", "solve"): return "fair"
+            return _num(v, None) * (0.01 if lab.endswith("%") else 1) if _num(v, None) is not None else v
+    return None
+
+
+def init_pricer(sh, old):
+    """(Re)build the Pricer tab. `old` maps labels to values from whatever layout was there before (inputs are carried over)."""
     ws = get_ws(sh, "Pricer", 80, 16)
     ws.clear()
     cells, fmts = [], []
     cells.append(gspread.Cell(1, 1, "LOBO cancellable swap pricer"))
-    cells.append(gspread.Cell(2, 1, "Fill the blue cells, then LOBO menu > Price now (or tick Run). Results fill in below; Status shows progress. Hover a cell for notes."))
+    cells.append(gspread.Cell(2, 1, "Fill the blue cells, then LOBO menu > Price now (or tick Run). Results appear in about 15 seconds. Hover a cell for an explanation."))
     fmts += [{"range": "A1", "format": _fmt(bold=True, size=14)}, {"range": "A2", "format": {"textFormat": {"italic": True}}}]
-    carry = {"Term (years)": ("Term (years)", 1), "Fixed rate we pay": ("Fixed rate %", 0.01), "Coupon frequency (months)": ("Frequency (months)", 1),
-             "Notional": ("Notional", 1), "Mean reversion": ("Mean reversion", 1), "Bank take, collateral": ("Bank take, collateral £", 1),
-             "Bank take, no collateral": ("Bank take, no collateral £", 1), "bp of spread per premium point": ("bp of spread per premium point", 1),
-             "Investor minimum spread bp": ("Investor minimum spread bp", 1), "Investor target spread bp": ("Investor target spread bp", 1)}
-    old = {**old_set, **old_struct}
     for row, label, kind, *dflt in PRICER:
         cells.append(gspread.Cell(row, 1, label))
         if kind == "h":
-            fmts.append({"range": "A%d:B%d" % (row, row), "format": _fmt(bold=True, bg=GREY)}); continue
+            fmts.append({"range": "A%d:K%d" % (row, row), "format": _fmt(bold=True, bg=GREY)}); continue
         if dflt:
-            v = dflt[0]; key = label.split("  (")[0]
-            if key in carry and carry[key][0] in old and str(old[carry[key][0]]).strip() != "":
-                ov = old[carry[key][0]]
-                v = "fair" if str(ov).strip().lower() in ("fair", "solve") else _num(ov, v) * carry[key][1]
+            v = _carried(label.split("  (")[0], old)
+            if v is None or isinstance(v, str) and kind != "id" and v != "fair": v = dflt[0]
             cells.append(gspread.Cell(row, 2, v))
         f = {}
         if kind.startswith("i"): f.update(_fmt(bg=BLUE))
         pat = {"m": MONEY, "p": PCT, "p0": PCT0}.get(kind.lstrip("i"))
         if pat: f.update(_fmt(pat))
-        if kind.endswith("o"): f.update(_fmt("0.000"))
+        if kind.endswith("o"): f.update(_fmt("0.00"))
         if f: fmts.append({"range": "B%d" % row, "format": f})
-    # European ladder + portfolio blocks
-    L, P = LADDER_COL, PORT_COL
-    cells += [gspread.Cell(15, 4, "EUROPEAN LADDER  (each ticked date on its own)"), gspread.Cell(16, 4, "Expiry (y)"), gspread.Cell(16, 5, "Value"), gspread.Cell(16, 6, "Forward swap")]
-    cells += [gspread.Cell(15, 8, "PORTFOLIO  (spread on each LOBO at the fixed rate priced, B18)")]
-    for j, h in enumerate(["LOBO term (y)", "Coupon", "Premium (pts)", "Dealt rate", "Gross spread bp", "Net spread bp", "Verdict"]):
-        cells.append(gspread.Cell(16, 8 + j, h))
-    fmts += [{"range": "D15:F15", "format": _fmt(bold=True, bg=GREY)}, {"range": "D16:F16", "format": _fmt(bold=True)},
-             {"range": "H15:N15", "format": _fmt(bold=True, bg=GREY)}, {"range": "H16:N16", "format": _fmt(bold=True)},
-             {"range": "E17:F80", "format": _fmt(MONEY)}, {"range": "I17:I40", "format": _fmt(PCT, bg=BLUE)}, {"range": "J17:J40", "format": _fmt(bg=BLUE)},
-             {"range": "K17:K40", "format": _fmt(PCT)}, {"range": "H17:H40", "format": _fmt(bg=BLUE)}]
+    # investor return table
+    r0, r1 = RET_ROWS
+    cells += [gspread.Cell(RET_HEAD, 2, "Premium paid (pts)"), gspread.Cell(RET_HEAD, 3, "Expected life")]
+    for j, h in enumerate(RET_HORIZONS): cells.append(gspread.Cell(RET_HEAD, 4 + j, h))
+    for i, (c, p) in enumerate(RET_LOANS):
+        cells += [gspread.Cell(r0 + i, 1, c), gspread.Cell(r0 + i, 2, p)]
+    fmts += [{"range": "A%d:G%d" % (RET_HEAD, RET_HEAD), "format": _fmt(bold=True, halign="CENTER")},
+             {"range": "A%d:A%d" % (r0, r1), "format": _fmt(PCT, bg=BLUE)}, {"range": "B%d:B%d" % (r0, r1), "format": _fmt("0.0", bg=BLUE)},
+             {"range": "C%d:G%d" % (r0, r1), "format": _fmt("0;[Red]-0", halign="CENTER")},
+             {"range": "A35:G35", "format": {"textFormat": {"italic": True, "foregroundColor": {"red": 0.5, "green": 0.5, "blue": 0.5}}, "numberFormat": {"type": "NUMBER", "pattern": "0.0"}}}]
+    # European ladder
+    L = LADDER_COL
+    cells += [gspread.Cell(16, 9, "EUROPEAN LADDER  (each ticked date on its own)"), gspread.Cell(17, 9, "Date (years)"), gspread.Cell(17, 10, "Option value"), gspread.Cell(17, 11, "Forward swap value")]
+    fmts += [{"range": "I17:K17", "format": _fmt(bold=True)}, {"range": "J18:K120", "format": _fmt(MONEY)}]
     ws.update_cells(cells, value_input_option="RAW")
-    formulas = []
-    for i, (T, c, pts) in enumerate(PORTFOLIO_LOANS, 17):
-        formulas.append([T, c, pts, "=$B$18", "=ROUND((I%d-K%d)*10000,0)" % (i, i), "=L%d-$B$57*J%d" % (i, i),
-                         '=IF(M%d>=$B$59,"target",IF(M%d>=$B$58,"minimum","out"))' % (i, i)])
-    ws.update(range_name="H17:N%d" % (16 + len(PORTFOLIO_LOANS)), values=formulas, value_input_option="USER_ENTERED")
+    write_return_formulas(ws)
     ws.batch_format(fmts)
     ws.add_validation(CELL["Run"], ValidationConditionType.boolean, [], strict=True)
     ws.add_validation(CELL["Call dates"], ValidationConditionType.one_of_list, PRESETS, strict=True, showCustomUi=True)
     ws.add_validation(CELL["Run mode"], ValidationConditionType.one_of_list, MODES, strict=True, showCustomUi=True)
     ws.insert_notes(NOTES)
     ws.freeze(rows=2)
-    _widths(sh, ws, {0: 290, 1: 150, 2: 30, 3: 90, 4: 110, 5: 110, 6: 30, 7: 100, 8: 80, 9: 100, 10: 90, 11: 110, 12: 110, 13: 80})
+    _widths(sh, ws, {0: 300, 1: 130, 2: 95, 3: 95, 4: 95, 5: 95, 6: 95, 7: 20, 8: 100, 9: 120, 10: 130})
+    ws.update(range_name=VERSION_CELL, values=[[LAYOUT_VERSION]]); ws.update(range_name=CLEAR_CELL, values=[[",".join(RESULT_RANGES)]]); ws.hide_columns(25, 26)
+    collapse_advanced(sh, ws)
     return ws
+
+
+def write_return_formulas(ws):
+    """The return table's live formulas: net spread bp = (coupon - rate priced) x 10000 - premium pts / annuity years x 100."""
+    r0, r1 = RET_ROWS
+    head = ['="Expected life ("&TEXT($B$%d,"0.0")&"y)"' % ROW["Expected life (years)"]]
+    rows = [head]
+    for r in range(r0, r1 + 1):
+        rows.append(['=IF(OR($A%d="",C$35=""),"",ROUND(($A%d-$B$%d)*10000-$B%d/C$35*100,0))' % (r, r, ROW["Fixed rate priced"], r)])
+    ws.update(range_name="C%d:C%d" % (RET_HEAD, r1), values=rows, value_input_option="USER_ENTERED")
+    body = []
+    for r in range(r0, r1 + 1):
+        body.append(['=IF(OR($A%d="",%s$35=""),"",ROUND(($A%d-$B$%d)*10000-$B%d/%s$35*100,0))' % (r, c, r, ROW["Fixed rate priced"], r, c) for c in "DEFG"])
+    ws.update(range_name="D%d:G%d" % (r0, r1), values=body, value_input_option="USER_ENTERED")
+
+
+def collapse_advanced(sh, ws):
+    a, b = ADVANCED_ROWS
+    rng = {"sheetId": ws.id, "dimension": "ROWS", "startIndex": a - 1, "endIndex": b}
+    try:
+        sh.batch_update({"requests": [{"deleteDimensionGroup": {"range": rng}}]})
+    except Exception:
+        pass                                                       # noqa: no group yet
+    sh.batch_update({"requests": [{"addDimensionGroup": {"range": rng}},
+                                  {"updateDimensionGroup": {"dimensionGroup": {"range": rng, "depth": 1, "collapsed": True}, "fields": "collapsed"}}]})
+
+
+def ensure_layout(sh):
+    """Bring an existing sheet's Pricer tab up to the current layout, keeping its inputs. No-op when already current."""
+    ws = get_ws(sh, "Pricer", 80, 16)
+    if ws.acell(VERSION_CELL).value == LAYOUT_VERSION:
+        return False
+    old = {}
+    for name in ("Settings", "Structure"): old.update(_old_kv(sh, name))
+    try:
+        for r in ws.get_values(value_render_option="UNFORMATTED_VALUE"):
+            if r and str(r[0]).strip() and len(r) > 1 and r[1] != "": old[str(r[0]).split("  (")[0].strip()] = r[1]
+    except Exception:
+        pass                                                       # noqa
+    init_pricer(sh, old)
+    return True
 
 
 def init_market(sh, old_curve, old_vols, old_asof):
@@ -227,7 +298,7 @@ def init_sheet(sh):
     except gspread.WorksheetNotFound:
         pass
     existing = {w.title for w in sh.worksheets()}
-    init_pricer(sh, old_struct, old_set)
+    init_pricer(sh, {**old_set, **old_struct})
     init_market(sh, old_curve, old_vols, old_set.get("As-of date", ""))
     init_schedule(sh)
     for name in OLD_TABS:
