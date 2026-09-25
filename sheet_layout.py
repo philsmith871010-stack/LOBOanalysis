@@ -12,7 +12,7 @@ BLUE, GREY, GREEN = {"red": 0.87, "green": 0.92, "blue": 0.98}, {"red": 0.93, "g
 
 # ---- Pricer tab: (row, label, kind, default). kind: h=header, i=input, o=output, m=money, p=percent, b=bool, d=dropdown, t=text
 # A label's key is the text before a double space; the bracketed part after it is explanation only.
-LAYOUT_VERSION = "v4"
+LAYOUT_VERSION = "v5"
 PRICER = [
     (1, "INPUTS", "h"),
     (2, "Swap term (years)", "i", 40), (3, "Fixed rate we pay", "ip", 0.0143), (4, "Coupon frequency (months)", "i", 6),
@@ -136,7 +136,7 @@ def init_pricer(sh, old):
     """(Re)build the Pricer tab. `old` maps labels to values from whatever layout was there before (inputs are carried over)."""
     ws = get_ws(sh, "Pricer", 80, 30)
     ws.resize(rows=max(ws.row_count, 80), cols=max(ws.col_count, 30))      # the hidden version / clear-range cells live in column Z
-    ws.clear()
+    ws.clear(); _reset_formatting(sh, ws)
     cells, fmts = [], []
     for row, label, kind, *dflt in PRICER:
         cells.append(gspread.Cell(row, 1, label))
@@ -148,9 +148,8 @@ def init_pricer(sh, old):
             cells.append(gspread.Cell(row, 2, v))
         f = {}
         if kind.startswith("i"): f.update(_fmt(bg=BLUE))
-        pat = {"m": MONEY, "p": PCT, "p0": PCT0}.get(kind.lstrip("i"))
+        pat = {"m": MONEY, "p": PCT, "p0": PCT0, "": "0", "o": "0.00"}.get(kind.lstrip("i"))
         if pat: f.update(_fmt(pat))
-        if kind.endswith("o"): f.update(_fmt("0.00"))
         if f: fmts.append({"range": "B%d" % row, "format": f})
     # investor return table
     r0, r1 = RET_ROWS
@@ -177,6 +176,16 @@ def init_pricer(sh, old):
     ws.update(range_name=VERSION_CELL, values=[[LAYOUT_VERSION]]); ws.update(range_name=CLEAR_CELL, values=[[",".join(RESULT_RANGES)]]); ws.hide_columns(25, 26)
     collapse_advanced(sh, ws)
     return ws
+
+
+def _reset_formatting(sh, ws):
+    """Wipe number formats, colours, data validations and notes left by an older layout, so nothing bleeds into moved cells."""
+    grid = {"sheetId": ws.id}
+    sh.batch_update({"requests": [
+        {"repeatCell": {"range": grid, "cell": {"userEnteredFormat": {}}, "fields": "userEnteredFormat"}},
+        {"repeatCell": {"range": grid, "cell": {"note": ""}, "fields": "note"}},
+        {"setDataValidation": {"range": grid}},
+    ]})
 
 
 def write_return_formulas(ws):

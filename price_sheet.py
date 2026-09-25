@@ -224,6 +224,7 @@ def run_job(sh, engine=None):
     except Exception as e:                       # noqa
         msg = "error: %s" % e; r = None
     ws.update(range_name=CELL["Run"], values=[[False]], value_input_option="RAW"); status(sh, msg)
+    if engine: ws.update(range_name=CELL["Engine"], values=[[engine]])        # again: a layout rebuild during the run clears it
     return r
 
 
