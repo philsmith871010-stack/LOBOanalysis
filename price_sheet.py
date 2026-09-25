@@ -195,8 +195,10 @@ def run(sh):
     put(ws, out)
     ws.update(range_name="C35:G35", values=[[round(annuity_years(mkt, y), 2) for y in (life, 5, 10, 15, term)]], value_input_option="RAW")
     r0, r1 = RET_ROWS
-    if all(str(c).strip() == "" for row in (ws.get("B%d:B%d" % (r0, r1)) or []) for c in row):      # premiums wiped (old button script): restore defaults
-        ws.update(range_name="A%d:B%d" % (r0, r1), values=[[c, p] for c, p in RET_LOANS], value_input_option="RAW")
+    tab = ws.get("A%d:B%d" % (r0, r1), value_render_option=UNF) or []
+    tab = [list(row) + [""] * (2 - len(row)) for row in tab] + [["", ""]] * (r1 - r0 + 1 - len(tab))
+    fix = [gspread.Cell(r0 + i, 2, RET_LOANS[i][1]) for i, (c, pm) in enumerate(tab) if str(c).strip() != "" and str(pm).strip() == ""]
+    if fix: ws.update_cells(fix, value_input_option="RAW")      # a coupon with no premium: an old button script wiped it, restore the default
     write_return_formulas(ws)
     ws.update(range_name="%s18" % LADDER_COL, values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
     if inp["mode"] == "full":
