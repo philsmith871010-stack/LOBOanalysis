@@ -18,7 +18,7 @@ import QuantLib as ql
 from pricer import Market, CallableSwap, price, rate_for_take, build_schedule, preset_ticks, SCHEDULE_COLUMNS
 from pricer import sensitivities, exercise_profile, collateral
 from pricer.data import surface_from_rows
-from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, LADDER_COL, RESULT_RANGES, col_letter, get_ws, init_sheet, style_schedule, ensure_layout, write_return_formulas
+from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, LADDER_COL, RESULT_RANGES, RET_ROWS, RET_LOANS, col_letter, get_ws, init_sheet, style_schedule, ensure_layout, write_return_formulas
 
 UNF = ValueRenderOption.unformatted
 SC = {name: col_letter(i + 1) for i, name in enumerate(SCHEDULE_COLUMNS)}
@@ -194,6 +194,9 @@ def run(sh):
                 "Swap value from Schedule cashflows": round(swap_npv), "Calibration error (max, relative)": round(r["calib_err"], 5)})
     put(ws, out)
     ws.update(range_name="C35:G35", values=[[round(annuity_years(mkt, y), 2) for y in (life, 5, 10, 15, term)]], value_input_option="RAW")
+    r0, r1 = RET_ROWS
+    if all(str(c).strip() == "" for row in (ws.get("B%d:B%d" % (r0, r1)) or []) for c in row):      # premiums wiped (old button script): restore defaults
+        ws.update(range_name="A%d:B%d" % (r0, r1), values=[[c, p] for c, p in RET_LOANS], value_input_option="RAW")
     write_return_formulas(ws)
     ws.update(range_name="%s18" % LADDER_COL, values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
     if inp["mode"] == "full":

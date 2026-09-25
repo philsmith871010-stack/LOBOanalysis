@@ -6,6 +6,7 @@ env var PRICER_TOKEN, and a service account that the sheet is shared with."""
 import json, os, threading, datetime as dt
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import price_sheet
+from sheet_layout import LAYOUT_VERSION
 
 TOKEN = os.environ.get("PRICER_TOKEN", "")
 LOCK = threading.Lock()
@@ -27,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
     def do_GET(self):
-        self._reply(200, "lobo pricer ok" if not LOCK.locked() else "lobo pricer busy")
+        self._reply(200, ("lobo pricer ok" if not LOCK.locked() else "lobo pricer busy") + ", layout " + LAYOUT_VERSION)
 
     def do_POST(self):
         if self.path.rstrip("/") != "/price": return self._reply(404, "not found")
