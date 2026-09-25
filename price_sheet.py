@@ -18,7 +18,7 @@ import QuantLib as ql
 from pricer import Market, CallableSwap, price, rate_for_take, build_schedule, preset_ticks, SCHEDULE_COLUMNS
 from pricer import sensitivities, exercise_profile, collateral
 from pricer.data import surface_from_rows
-from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, LADDER_COL, RESULT_RANGES, RET_ROWS, RET_LOANS, col_letter, get_ws, init_sheet, style_schedule, ensure_layout, write_return_formulas
+from sheet_layout import CELL, ROW, PRICER, NOTES, KEY_CELL, PRESET_CELL, LADDER_COL, LADDER_ROW, ANN_ROW, RESULT_RANGES, RET_ROWS, RET_LOANS, col_letter, get_ws, init_sheet, style_schedule, ensure_layout, write_return_formulas
 
 UNF = ValueRenderOption.unformatted
 SC = {name: col_letter(i + 1) for i, name in enumerate(SCHEDULE_COLUMNS)}
@@ -193,14 +193,14 @@ def run(sh):
                 "Intrinsic on the best single date": round(r["intrinsic"]), "Annuity per 1%": round(r["annuity"] / 100),
                 "Swap value from Schedule cashflows": round(swap_npv), "Calibration error (max, relative)": round(r["calib_err"], 5)})
     put(ws, out)
-    ws.update(range_name="C35:G35", values=[[round(annuity_years(mkt, y), 2) for y in (life, 5, 10, 15, term)]], value_input_option="RAW")
+    ws.update(range_name="C%d:G%d" % (ANN_ROW, ANN_ROW), values=[[round(annuity_years(mkt, y), 2) for y in (life, 5, 10, 15, term)]], value_input_option="RAW")
     r0, r1 = RET_ROWS
     tab = ws.get("A%d:B%d" % (r0, r1), value_render_option=UNF) or []
     tab = [list(row) + [""] * (2 - len(row)) for row in tab] + [["", ""]] * (r1 - r0 + 1 - len(tab))
     fix = [gspread.Cell(r0 + i, 2, RET_LOANS[i][1]) for i, (c, pm) in enumerate(tab) if str(c).strip() != "" and str(pm).strip() == ""]
     if fix: ws.update_cells(fix, value_input_option="RAW")      # a coupon with no premium: an old button script wiped it, restore the default
     write_return_formulas(ws)
-    ws.update(range_name="%s18" % LADDER_COL, values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
+    ws.update(range_name="%s%d" % (LADDER_COL, LADDER_ROW + 2), values=[[e, round(v), round(i)] for e, v, i, _ in r["europeans"]], value_input_option="RAW")
     if inp["mode"] == "full":
         status(sh, "running: sensitivities (rate, vol, reversion)")
         sen = sensitivities(mkt, s, r)
